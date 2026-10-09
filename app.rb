@@ -1,7 +1,6 @@
 require "sinatra/base"
 require "json"
 require "dotenv"
-require "rqrcode"
 Dotenv.load(File.expand_path(".env", __dir__))
 require_relative "lib/shopper"
 Shopper::Log.configure unless Shopper::Log.configured?
@@ -54,6 +53,7 @@ class ShopperApp < Sinatra::Base
   configure do
     set :deps, nil
     set :store, Shopper::Store.new(File.join(__dir__, "data"))
+    set :run_store, Shopper::RunStore.new(File.join(__dir__, "data", "runs"))
     set :return_url, ENV.fetch("RETURN_URL", "https://example.com/reap-return")
     set :worker, ThreadWorker
     set :debug_endpoints, ENV.fetch("DEBUG_ENDPOINTS", "true") == "true"
@@ -71,7 +71,10 @@ class ShopperApp < Sinatra::Base
     def h(text) = Rack::Utils.escape_html(text.to_s)
     def json(data, status_code = 200) = (status(status_code); content_type(:json); JSON.generate(data))
     def enrollment_id = ENV["REAP_ENROLLMENT_ID"].to_s.empty? ? store.state["enrollment_id"] : ENV["REAP_ENROLLMENT_ID"]
-    def find_run(id) = RUNS_LOCK.synchronize { RUNS[id] } || halt(404, "Run not found")
+    def find_run(id)
+      RUNS_LOCK.synchronize { RUNS[id] ||= settings.run_store.load(id) } ||
+        halt(404, "Run not found. It may be from before runs were saved to disk; start a new request.")
+    end
     def profile = store.profile
     def enrolled? = !enrollment_id.to_s.empty?
     def merchants = settings.merchants
@@ -146,7 +149,7 @@ class ShopperApp < Sinatra::Base
 
     autopilot = params[:autopilot].to_s == "1"
     run = Shopper::Run.new(goal:, budget:, ship_country:, autopilot:)
-    RUNS_LOCK.synchronize { RUNS[run.id] = run }
+    RUNS_LOCK.synchronize { RUNS[run.id] = settings.run_store.track(run) }
     Shopper::Log.info("run.created", run_id: run.id, goal:, budget:, ship_country:, autopilot:)
     researcher = deps[:researcher]
     saved = profile
@@ -248,6 +251,13 @@ class ShopperApp < Sinatra::Base
     redirect "/setup"
   end
 
+  # Records events the Reap/Prava card popup posts back to /setup, so a completed hosted flow is visible in the logs.
+  post "/setup/event" do
+    body = JSON.parse(request.body.read.to_s[0, 8_000]) rescue {}
+    Shopper::Log.info("setup.prava_event", enrollment_id: enrollment_id, event: body["event"].to_s[0, 64], payload: body["payload"])
+    status 204
+  end
+
   # Reuse a card enrolled elsewhere (another machine, teammate, or an earlier owner id).
   post "/setup/use" do
     id = params[:enrollment_id].to_s.strip.downcase
@@ -261,15 +271,6 @@ class ShopperApp < Sinatra::Base
     store.update_state("enrollment_id" => id, "enrollment_url" => e.dig("nextAction", "url"))
     Shopper::Log.info("setup.enrollment_selected", enrollment_id: id, status: e["status"], last4: e.dig("paymentMethod", "last4"))
     redirect "/setup"
-  end
-
-  get "/setup/qr.svg" do
-    url = Shopper::CardSetup.pending_url(card_state(list: false)[:current])
-    halt 404, "No card link is waiting" unless url
-    cache_control :no_store
-    content_type "image/svg+xml"
-    RQRCode::QRCode.new(url, level: :m).as_svg(module_size: 5, standalone: true, use_path: true, viewbox: true,
-                                               color: "1e140c", fill: "ffffff", offset: 16)
   end
 
   get "/orders" do

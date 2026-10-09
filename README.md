@@ -30,14 +30,14 @@ bundle exec rspec                 # property-based + unit tests
 One-time card setup at **/setup** (about 30 seconds, done once per install):
 
 1. **Get a secure card link.** It uses your saved email, and every card is filed under one stable owner ID in `data/state.json`.
-2. **Add the card on Reap's page**, either on this computer or by scanning the QR code with your phone. Sandbox test cards are listed on the page with tap-to-copy (e.g. `4622 9431 2313 7797`, CVC `640`, exp `12/27`, OTP `456789`).
+2. **Add the card on Reap's page.** It opens in a popup over `/setup`. On Visa's screen, tick "I agree to Visa Terms" to enable Continue.
 3. **Confirm with a passkey.** Visa requires a one-time Face ID / Touch ID / device-PIN passkey before an agent can use a card. Neither Reap nor this app can skip it.
-4. The page polls Reap and switches to **Ready** by itself, with no reload needed.
+4. The page polls Reap and switches to **Ready** by itself. In a popup, Reap's page reports success back to `/setup` and closes. **Sandbox note (observed, not documented):** Reap marks a finished card `ACTIVE` only when that link's 15-minute window (`nextAction.expiresAt`) closes, so `/setup` shows "Card set up on Reap" with a countdown until then. You don't need a fresh link: the app picks up any ACTIVE card under your owner ID, even if you started another link after it.
 
 Notes:
-- **Mac Safari** blocks Visa's embedded passkey step ("Authentication Failed"). `/setup` detects it and points you to the QR code or another browser.
+- **Mac Safari** blocks Visa's embedded passkey step ("Authentication Failed"). `/setup` detects it and asks you to copy the link into another browser.
 - Cards are reused: if an earlier card is still `ACTIVE`, `/setup` switches back to it instead of asking again.
-- **Other machines:** paste an existing enrollment ID under "Already added a card elsewhere?", or pin one with `REAP_ENROLLMENT_ID`. Any card added with the same Reap API key works.
+- **Enrollment ID:** Reap stores the card and gives the app only an enrollment ID, which checkout uses as the payment handle. To reuse a card on another machine, paste its ID under "Already added a card before?" or pin it with `REAP_ENROLLMENT_ID`. Any card added with the same Reap API key works.
 
 Optional env: `OPENAI_MODEL` (default `gpt-4o-mini`), `RETURN_URL`, `SIMULATE_CHECKOUT` (default `true` in sandbox; skips the hosted approval step), `REAP_WEBHOOK_SECRET` (enables signature verification on `POST /webhooks/reap`).
 

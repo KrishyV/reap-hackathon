@@ -5,7 +5,6 @@
   step = active ? 3 : (pending ? 2 : 1)
   pf = @profile || {}
   check = '<svg aria-hidden="true"><use href="#i-check"/></svg>'
-  test_cards = [["4622 9431 2313 7797", "640"], ["4622 9431 2313 7805", "304"], ["4622 9431 2313 7847", "698"]]
 %>
 <header class="page-head">
   <span class="eyebrow"><svg width="14" height="14" aria-hidden="true"><use href="#i-card"/></svg> One-time setup</span>
@@ -15,7 +14,7 @@
 
 <div class="setup-grid">
   <section class="glass panel stack" aria-labelledby="card-h" id="card-setup"
-           data-status="<%= h c[:status] %>" data-expires="<%= h c[:expires_at] %>">
+           data-status="<%= h c[:status] %>" data-expires="<%= h c[:expires_at] %>" data-id="<%= h c[:id] %>">
     <h2 class="section-title" id="card-h">Payment card
       <% if active %><span class="pill ok"><span class="led"></span>Active</span>
       <% elsif pending %><span class="pill warn live" id="live-pill"><span class="led"></span>Waiting for card</span>
@@ -66,39 +65,27 @@
         <div class="handoff-main stack" style="gap:12px">
           <div class="banner safari-only" role="note" hidden>
             <svg aria-hidden="true"><use href="#i-alert"/></svg>
-            <span><b>Mac Safari can't finish Visa's passkey step.</b> Scan the code with your phone, or copy the link into Chrome, Edge or Firefox.</span>
+            <span><b>Mac Safari can't finish Visa's passkey step.</b> Copy the link into Chrome, Edge or Firefox to continue.</span>
           </div>
-          <a class="btn btn-lg" id="open-card" target="_blank" rel="noopener" href="<%= h c[:url] %>">Add card on Reap <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
-          <div class="row-btns">
+          <a class="btn btn-lg" id="open-card" data-hide-when-done target="_blank" rel="noopener" href="<%= h c[:url] %>">Add card on Reap <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <p class="note" id="popup-wait" hidden><svg aria-hidden="true"><use href="#i-card"/></svg><span>Finish in the Reap window. It closes and this page updates as soon as your card is added.</span></p>
+          <p class="note" id="popup-done" role="status" hidden><svg aria-hidden="true"><use href="#i-shield"/></svg><span><b>Card set up on Reap.</b> Reap confirms it's ready to charge when this link's 15-minute window closes, <span id="confirm-eta">shortly</span>. Keep this page open; it switches to Ready by itself.</span></p>
+          <p class="banner" id="popup-incomplete" role="alert" hidden><svg aria-hidden="true"><use href="#i-alert"/></svg><span><b>The card wasn't added.</b> Reap's window closed before the passkey step finished (Cancel or "Not now" also ends it). Click "Add card on Reap" to try again.</span></p>
+          <div class="row-btns" data-hide-when-done>
             <button type="button" class="btn btn-ghost btn-sm" data-copy="<%= h c[:url] %>">Copy link</button>
             <span class="muted countdown" id="countdown"></span>
           </div>
         </div>
-        <figure class="qr">
-          <img src="/setup/qr.svg?<%= h c[:id] %>" width="168" height="168" alt="QR code for the Reap card link">
-          <figcaption>Or scan to finish on your phone</figcaption>
-        </figure>
       </div>
 
-      <details class="testcards" open>
-        <summary>Sandbox test details <small class="muted">(tap to copy)</small></summary>
-        <ul>
-          <% test_cards.each do |num, cvc| %>
-            <li><button type="button" class="chip-copy" data-copy="<%= num.delete(' ') %>"><code><%= num %></code></button>
-              <span class="muted">CVC</span> <button type="button" class="chip-copy" data-copy="<%= cvc %>"><code><%= cvc %></code></button>
-              <span class="muted">exp</span> <code>12/27</code></li>
-          <% end %>
-          <li><span class="muted">One-time code</span> <button type="button" class="chip-copy" data-copy="456789"><code>456789</code></button> <span class="muted">(email or SMS)</span></li>
-        </ul>
-        <p class="muted small">If one card is declined, start a new link and try the next one.</p>
-      </details>
 
       <p class="note"><svg aria-hidden="true"><use href="#i-shield"/></svg>
         <span><b>Why a passkey?</b> Visa needs a one-time Face ID, Touch ID or device PIN before an AI agent can be trusted with a card. Neither Reap nor this app can skip it. You only do it once, and it's saved on your device.</span></p>
     <% end %>
 
+
     <% unless active %>
-      <form method="post" action="/setup/enroll" class="stack" style="gap:12px">
+      <form method="post" action="/setup/enroll" class="stack" style="gap:12px" data-hide-when-done>
         <% if pending %>
           <button type="submit" class="btn btn-ghost btn-sm">Get a fresh link</button>
           <input type="hidden" name="email" value="<%= h c[:email] || pf['email'] %>">
@@ -112,13 +99,14 @@
     <% end %>
 
     <details class="useid">
-      <summary><%= active ? "Use a different card" : "Already added a card elsewhere?" %></summary>
+      <summary><%= active ? "Switch to another saved card" : "Already added a card before?" %></summary>
       <form method="post" action="/setup/use" class="stack" style="gap:10px">
+        <p class="muted small">When you add a card, Reap stores it securely and gives this app an <b>enrollment ID</b>. The app never sees your card number. It only keeps that ID and quotes it at checkout. Because the card stays with Reap, you can reuse it by entering its ID here instead of adding it again.</p>
         <label class="field">Enrollment ID
           <input name="enrollment_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" pattern="[0-9a-fA-F-]{36}" autocomplete="off" spellcheck="false" <%= 'disabled' if @env_locked %>>
         </label>
         <button type="submit" class="btn btn-ghost btn-sm" <%= 'disabled' if @env_locked %>>Use this card</button>
-        <p class="muted small">Find it on another machine's <code>/debug/config</code>, or in <code>data/state.json</code>. Any card added with this Reap API key works.<% if active %> Current: <code><%= h c[:id] %></code> <button type="button" class="chip-copy" data-copy="<%= h c[:id] %>">copy</button><% end %></p>
+        <% if active %><p class="muted small">This card's ID: <code><%= h c[:id] %></code> <button type="button" class="chip-copy" data-copy="<%= h c[:id] %>">copy</button></p><% end %>
       </form>
     </details>
   </section>
@@ -147,3 +135,4 @@
 </div>
 
 <script src="/js/setup.js" defer></script>
+<script src="/js/address-suggest.js" defer></script>

@@ -37,6 +37,7 @@ RSpec.describe ShopperApp do
     ShopperApp.set :worker, ShopperApp::InlineWorker
     ShopperApp.set :deps, { researcher:, cards:, agentic: }
     ShopperApp.set :store, Shopper::Store.new(store_dir)
+    ShopperApp.set :run_store, Shopper::RunStore.new(File.join(store_dir, "runs"))
   end
 
   def create_run(goal: "camping for two", budget: "100")
@@ -108,7 +109,7 @@ RSpec.describe ShopperApp do
   describe "card setup" do
     def state = ShopperApp.settings.store.state
 
-    it "starts an enrollment under one stable owner and shows the link with a QR code" do
+    it "starts an enrollment under one stable owner and shows the card link" do
       post "/setup/enroll", email: "ada@example.com"
       expect(last_response.status).to eq(302)
       post "/setup/enroll", email: "ada@example.com"
@@ -117,11 +118,8 @@ RSpec.describe ShopperApp do
       expect(owners.first).to eq(state["owner_id"])
 
       get "/setup"
-      expect(last_response.body).to include("Add card on Reap", "https://collect.example/?session=#{state['enrollment_id']}", "456789")
-      get "/setup/qr.svg"
-      expect(last_response.status).to eq(200)
-      expect(last_response.content_type).to include("image/svg+xml")
-      expect(last_response.body).to include("<svg")
+      expect(last_response.body).to include("Add card on Reap", "https://collect.example/?session=#{state['enrollment_id']}")
+      expect(last_response.body).not_to include("qr.svg", "456789", "Auto-enroll")
     end
 
     it "falls back to the saved profile email" do
@@ -133,6 +131,13 @@ RSpec.describe ShopperApp do
       expect(ledger.of(:enrollment).last[:email]).to eq("ada@example.com")
     end
 
+    it "accepts Prava popup events for logging" do
+      post "/setup/event", JSON.generate(event: "PRAVA_REDIRECT", payload: { url: "https://x" }), "CONTENT_TYPE" => "application/json"
+      expect(last_response.status).to eq(204)
+      post "/setup/event", "not json", "CONTENT_TYPE" => "application/json"
+      expect(last_response.status).to eq(204)
+    end
+
     it "flips to ACTIVE on the status poll once the card is added" do
       post "/setup/enroll", email: "ada@example.com"
       id = state["enrollment_id"]
@@ -141,8 +146,6 @@ RSpec.describe ShopperApp do
       agentic.activate!(id, last4: "7797")
       get "/setup/status.json"
       expect(JSON.parse(last_response.body)).to include("status" => "ACTIVE", "last4" => "7797", "active" => true)
-      get "/setup/qr.svg"
-      expect(last_response.status).to eq(404)
     end
 
     it "reuses an already-active saved card instead of a fresh pending link" do
@@ -203,6 +206,33 @@ RSpec.describe ShopperApp do
       post "/runs/#{id}/purchase", checkout_params.merge(keep: [])
       expect(last_response.status).to eq(422)
       expect(ledger.events).to be_empty
+    end
+
+    it "survives a server restart while the basket awaits review" do
+      ENV["REAP_ENROLLMENT_ID"] = "enr_test"
+      id = create_run
+      ShopperApp::RUNS_LOCK.synchronize { ShopperApp::RUNS.clear }
+      expect(run_json(id)["status"]).to eq("awaiting_review")
+      post "/runs/#{id}/purchase", checkout_params
+      expect(last_response.status).to eq(302)
+      expect(run_json(id)["status"]).to eq("done")
+      ShopperApp::RUNS_LOCK.synchronize { ShopperApp::RUNS.clear }
+      expect(run_json(id)).to include("status" => "done", "receipt" => include("frozen" => true))
+    end
+
+    it "fails a restored run that was interrupted mid-checkout instead of resuming it" do
+      id = create_run
+      run = ShopperApp::RUNS_LOCK.synchronize { ShopperApp::RUNS[id] }
+      run.transition!("purchasing", from: "awaiting_review")
+      ShopperApp::RUNS_LOCK.synchronize { ShopperApp::RUNS.clear }
+      expect(run_json(id)).to include("status" => "failed", "error" => include("restarted during checkout"))
+    end
+
+    it "404s unknown runs" do
+      get "/runs/0123456789ab"
+      expect(last_response.status).to eq(404)
+      get "/runs/..%2Fstate"
+      expect(last_response.status).to eq(404)
     end
 
     it "buys the reviewed basket, ends done, and freezes the card" do
