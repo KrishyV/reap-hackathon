@@ -1,3 +1,4 @@
+require "uri"
 require_relative "client"
 require_relative "../money"
 require_relative "../log"
@@ -50,6 +51,13 @@ module Shopper
         e = @client.get("/agentic/enrollments/#{id}")
         Log.debug("agentic.enrollment", enrollment_id: id, status: e["status"])
         e
+      end
+
+      def enrollments(owner_id:, limit: 50)
+        q = URI.encode_www_form(ownerType: "CLIENT_REFERENCE", ownerId: owner_id, limit:)
+        items = Array(@client.get("/agentic/enrollments?#{q}")["items"])
+        Log.debug("agentic.enrollments", owner_id:, count: items.size, statuses: items.map { _1["status"] }.tally)
+        items
       end
 
       def create_quote(items:, email:, address:, idempotency_key:)

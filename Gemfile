@@ -6,6 +6,7 @@ gem "sinatra", "~> 4.0"
 gem "rackup", "~> 2.1"
 gem "puma", "~> 6.4"
 gem "dotenv", "~> 3.1"
+gem "rqrcode", "~> 3.1"
 
 group :test do
   gem "rspec", "~> 3.13"

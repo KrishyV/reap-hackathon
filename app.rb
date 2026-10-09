@@ -1,6 +1,7 @@
 require "sinatra/base"
 require "json"
 require "dotenv"
+require "rqrcode"
 Dotenv.load(File.expand_path(".env", __dir__))
 require_relative "lib/shopper"
 Shopper::Log.configure unless Shopper::Log.configured?
@@ -74,6 +75,36 @@ class ShopperApp < Sinatra::Base
     def profile = store.profile
     def enrolled? = !enrollment_id.to_s.empty?
     def merchants = settings.merchants
+    def env_enrollment? = !ENV["REAP_ENROLLMENT_ID"].to_s.empty?
+
+    def lookup_enrollment(id)
+      deps[:agentic].enrollment(id)
+    rescue StandardError => e
+      Shopper::Log.warn("setup.enrollment_lookup_failed", enrollment_id: id, error_message: e.message)
+      nil
+    end
+
+    # Current enrollment plus every ACTIVE card this install has added. If the current one isn't
+    # ACTIVE but a saved card is, switch to it so nobody re-enrolls a card that already works.
+    def card_state(list: true)
+      id = enrollment_id
+      current = id && lookup_enrollment(id)
+      return { current:, saved: [current].select { Shopper::CardSetup.active?(_1) } } if Shopper::CardSetup.active?(current) && !list
+
+      items = begin
+        deps[:agentic].enrollments(owner_id: Shopper::CardSetup.owner_id(store, inherit: current&.dig("owner", "id")))
+      rescue StandardError => e
+        Shopper::Log.warn("setup.enrollments_list_failed", error_message: e.message)
+        []
+      end
+      saved = (items + [current]).select { Shopper::CardSetup.active?(_1) }.uniq { _1["id"] }
+      if !env_enrollment? && !Shopper::CardSetup.active?(current) && (best = Shopper::CardSetup.best(saved))
+        store.update_state("enrollment_id" => best["id"])
+        Shopper::Log.info("setup.card_adopted", enrollment_id: best["id"], last4: best.dig("paymentMethod", "last4"), replaced: id)
+        current = best
+      end
+      { current:, saved: }
+    end
   end
 
   # Curated merchant showcase from an empirical sandbox catalog survey (Reap has no merchant-list endpoint).
@@ -191,26 +222,54 @@ class ShopperApp < Sinatra::Base
   end
 
   get "/setup" do
-    @enrollment_id = enrollment_id
+    @card = card_state
+    @current = Shopper::CardSetup.summary(@card[:current])
+    @saved = @card[:saved].map { Shopper::CardSetup.summary(_1) }
+    @env_locked = env_enrollment?
     @profile = profile
-    if @enrollment_id
-      @enrollment = begin
-        deps[:agentic].enrollment(@enrollment_id)
-      rescue StandardError => e
-        Shopper::Log.warn("setup.enrollment_lookup_failed", enrollment_id: @enrollment_id, error_message: e.message)
-        nil
-      end
-    end
     erb :setup
+  end
+
+  # Polled by /setup while the user is on Reap's card page; flips to ACTIVE without a reload.
+  get "/setup/status.json" do
+    cache_control :no_store
+    card = card_state(list: false)
+    json(Shopper::CardSetup.summary(card[:current]))
   end
 
   post "/setup/enroll" do
     email = params[:email].to_s.strip
+    email = profile&.dig("email").to_s if email.empty?
     halt 422, "Enter a valid email" unless email.match?(/\A[^@\s]+@[^@\s]+\.[a-z]{2,}\z/i)
-    e = deps[:agentic].create_enrollment(owner_id: "dumpling-#{SecureRandom.hex(4)}", email:, return_url: settings.return_url)
-    Shopper::Log.info("setup.enrollment_started", enrollment_id: e["id"], status: e["status"])
+    owner_id = Shopper::CardSetup.owner_id(store)
+    e = deps[:agentic].create_enrollment(owner_id:, email:, return_url: settings.return_url)
+    Shopper::Log.info("setup.enrollment_started", enrollment_id: e["id"], status: e["status"], owner_id:)
     store.update_state("enrollment_id" => e["id"], "enrollment_url" => e.dig("nextAction", "url"))
     redirect "/setup"
+  end
+
+  # Reuse a card enrolled elsewhere (another machine, teammate, or an earlier owner id).
+  post "/setup/use" do
+    id = params[:enrollment_id].to_s.strip.downcase
+    halt 422, "That doesn't look like an enrollment ID (expected a UUID)." unless id.match?(Shopper::CardSetup::UUID)
+    e = begin
+      deps[:agentic].enrollment(id)
+    rescue Shopper::Reap::Error => err
+      Shopper::Log.warn("setup.use_rejected", enrollment_id: id, status: err.status, code: err.code)
+      halt 422, "Reap couldn't find enrollment #{id} for this API key (#{err.code})."
+    end
+    store.update_state("enrollment_id" => id, "enrollment_url" => e.dig("nextAction", "url"))
+    Shopper::Log.info("setup.enrollment_selected", enrollment_id: id, status: e["status"], last4: e.dig("paymentMethod", "last4"))
+    redirect "/setup"
+  end
+
+  get "/setup/qr.svg" do
+    url = Shopper::CardSetup.pending_url(card_state(list: false)[:current])
+    halt 404, "No card link is waiting" unless url
+    cache_control :no_store
+    content_type "image/svg+xml"
+    RQRCode::QRCode.new(url, level: :m).as_svg(module_size: 5, standalone: true, use_path: true, viewbox: true,
+                                               color: "1e140c", fill: "ffffff", offset: 16)
   end
 
   get "/orders" do
@@ -287,7 +346,7 @@ class ShopperApp < Sinatra::Base
     json(reap_base_url: ENV.fetch("REAP_BASE_URL", "https://sandbox.api.reap.global"), reap_version: ENV.fetch("REAP_VERSION", "2025-02-14"),
          reap_api_key_set: !ENV["REAP_API_KEY"].to_s.empty?, openai_key_set: !ENV["OPENAI_API_KEY"].to_s.empty?,
          openai_model: ENV.fetch("OPENAI_MODEL", "gpt-4o-mini"), simulate_checkout: deps[:simulate_checkout],
-         enrollment_configured: !enrollment_id.to_s.empty?, webhook_secret_set: !ENV["REAP_WEBHOOK_SECRET"].to_s.empty?,
+         enrollment_configured: !enrollment_id.to_s.empty?, enrollment_id:, owner_id: store.state["owner_id"], webhook_secret_set: !ENV["REAP_WEBHOOK_SECRET"].to_s.empty?,
          fx: deps[:fx] && { markup_bps: deps[:fx].markup_bps, buffer_bps: deps[:fx].buffer_bps, cache: deps[:fx].snapshot },
          log: { stderr_level: Shopper::Log::LEVELS.key(Shopper::Log.stderr_level), file_level: Shopper::Log::LEVELS.key(Shopper::Log.file_level),
                 file: Shopper::Log.file_path },
