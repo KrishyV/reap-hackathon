@@ -1,0 +1,11 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+instructions.md
+vendor/
+.bundle/
+data/*.json
+data/*.tmp
+.playwright-mcp/
+tmp/
