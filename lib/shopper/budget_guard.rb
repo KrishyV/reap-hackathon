@@ -1,4 +1,5 @@
 require_relative "money"
+require_relative "log"
 
 module Shopper
   # Local mirror of the prepaid card's budget. Holds are reserved before a checkout
@@ -25,8 +26,12 @@ module Shopper
     def reserve!(hold_id, amount)
       @mutex.synchronize do
         raise ArgumentError, "duplicate hold #{hold_id}" if @holds.key?(hold_id)
-        raise Exceeded, "#{amount} exceeds remaining #{remaining}" unless can_reserve?(amount)
+        unless can_reserve?(amount)
+          Log.warn("guard.reserve_refused", hold: hold_id.to_s[0, 12], amount:, remaining:)
+          raise Exceeded, "#{amount} exceeds remaining #{remaining}"
+        end
         @holds[hold_id] = amount
+        Log.info("guard.reserved", hold: hold_id.to_s[0, 12], amount:, spent:, held:, remaining:)
       end
     end
 
@@ -34,14 +39,24 @@ module Shopper
     def capture!(hold_id, final_amount)
       @mutex.synchronize do
         held_amount = @holds.fetch(hold_id) { raise UnknownHold, hold_id.to_s }
-        raise Exceeded, "final #{final_amount} exceeds hold #{held_amount}" if final_amount > held_amount
+        if final_amount > held_amount
+          Log.error("guard.capture_refused", hold: hold_id.to_s[0, 12], final: final_amount, held: held_amount)
+          raise Exceeded, "final #{final_amount} exceeds hold #{held_amount}"
+        end
         @holds.delete(hold_id)
         @spent += final_amount
+        Log.info("guard.captured", hold: hold_id.to_s[0, 12], held: held_amount, captured: final_amount,
+                                   released: held_amount - final_amount, spent: @spent, remaining:)
+        @spent
       end
     end
 
     def release!(hold_id)
-      @mutex.synchronize { @holds.delete(hold_id) { raise UnknownHold, hold_id.to_s } }
+      @mutex.synchronize do
+        amount = @holds.delete(hold_id) { raise UnknownHold, hold_id.to_s }
+        Log.info("guard.released", hold: hold_id.to_s[0, 12], amount:, spent:, remaining:)
+        amount
+      end
     end
 
     def invariant_ok? = spent + held <= budget

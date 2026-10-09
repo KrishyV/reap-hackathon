@@ -1,5 +1,6 @@
 require_relative "client"
 require_relative "../money"
+require_relative "../log"
 
 module Shopper
   module Reap
@@ -34,21 +35,26 @@ module Shopper
           firstName: holder.fetch(:first_name),
           lastName: holder.fetch(:last_name)
         }, idempotency_key: key.("user"))
+        Log.info("card.user_created", user_id: user["id"], external_id: "run-#{run_id}")
         log.("Created cardholder #{user['id'][0, 8]}…")
 
-        approve_kyc!(user["id"], log)
+        Log.time("card.kyc", level: :info, user_id: user["id"]) { approve_kyc!(user["id"], log) }
 
         account = @client.post("/accounts", { ownerId: user["id"] }, idempotency_key: key.("account"))
+        Log.info("card.account_created", account_id: account["id"])
         card = @client.post("/cards", { userId: user["id"], accountId: account["id"], type: "VIRTUAL" }, idempotency_key: key.("card"))
+        Log.info("card.issued", card_id: card["id"], last4: card["last4"], status: card["status"])
         log.("Issued virtual card •••• #{card['last4']}")
 
         @client.post("/postings", {
           accountId: account["id"], type: "DEPOSIT",
           entries: [{ virtualAssetId: usd_asset_id, amount: budget.to_decimal_string }]
         }, idempotency_key: key.("fund"))
+        Log.info("card.funded", account_id: account["id"], amount: budget)
         log.("Loaded exactly #{budget} onto the card")
 
         apply_policies!(card["id"], budget, max_orders, key)
+        Log.info("card.policies_applied", card_id: card["id"], spend_cap: budget, max_orders:, blocked_mccs: BLOCKED_MCCS)
         log.("Locked card: lifetime cap #{budget}, max #{max_orders} charge(s), online only, risky MCCs blocked")
 
         Card.new(id: card["id"], user_id: user["id"], account_id: account["id"], last4: card["last4"], budget:)
@@ -74,23 +80,52 @@ module Shopper
           cardId: card_id, amount: amount.to_api_number, channel: "ECOMMERCE",
           merchant: { name: merchant.to_s[0, 60].then { |m| m.empty? ? "Merchant" : m }, mccCode: HOLD_MCC, country: "US" }
         }, idempotency_key:)
-        raise Declined, tx.dig("declineReason", "code") || tx["status"] unless tx["status"] == "PENDING"
+        unless tx["status"] == "PENDING"
+          Log.warn("card.hold_declined", card_id:, amount:, merchant:, status: tx["status"],
+                                         decline_code: tx.dig("declineReason", "code"), decline_message: tx.dig("declineReason", "message"))
+          raise Declined, tx.dig("declineReason", "code") || tx["status"]
+        end
+        Log.info("card.hold_placed", card_id:, amount:, merchant:, transaction_id: tx["id"])
         Hold.new(transaction_id: tx["id"], amount:)
       end
 
       def capture!(card_id:, hold:, amount:, idempotency_key:)
-        @client.post("/simulation/card-transactions/clearing",
-                     { cardId: card_id, transactionId: hold.transaction_id, amount: amount.to_api_number }, idempotency_key:)
+        r = @client.post("/simulation/card-transactions/clearing",
+                         { cardId: card_id, transactionId: hold.transaction_id, amount: amount.to_api_number }, idempotency_key:)
+        Log.info("card.hold_captured", card_id:, transaction_id: hold.transaction_id, held: hold.amount, captured: amount)
+        r
       end
 
       def release!(card_id:, hold:, idempotency_key:)
-        @client.post("/simulation/card-transactions/reversal",
-                     { cardId: card_id, transactionId: hold.transaction_id, amount: hold.amount.to_api_number }, idempotency_key:)
+        r = @client.post("/simulation/card-transactions/reversal",
+                         { cardId: card_id, transactionId: hold.transaction_id, amount: hold.amount.to_api_number }, idempotency_key:)
+        Log.info("card.hold_released", card_id:, transaction_id: hold.transaction_id, amount: hold.amount)
+        r
       end
 
-      def freeze!(card_id) = @client.post("/cards/#{card_id}/freeze", {})
+      def freeze!(card_id)
+        r = @client.post("/cards/#{card_id}/freeze", {})
+        Log.info("card.frozen", card_id:, status: r.is_a?(Hash) ? r["status"] : nil)
+        r
+      end
 
-      def reveal_url(card_id) = @client.post("/cards/#{card_id}/reveal", {})["revealUrl"]
+      def reveal_url(card_id)
+        url = @client.post("/cards/#{card_id}/reveal", {})["revealUrl"]
+        Log.info("card.reveal_requested", card_id:, url:)
+        url
+      end
+
+      # The account's effective FX markup in basis points (account override or program default).
+      def fx_markup_bps(account_id)
+        items = @client.get("/fees/effective?accountId=#{account_id}").fetch("items", [])
+        fee = items.find { |f| f["type"] == "FX_MARKUP" }
+        bps = fee&.dig("value", "bps")
+        Log.info("card.fx_markup", account_id:, bps:, scope: fee&.dig("source", "scope", "type"))
+        bps&.to_i
+      rescue Error => e
+        Log.warn("card.fx_markup_unavailable", account_id:, error_message: e.message)
+        nil
+      end
 
       def balance(account_id) = Money.from_api({ "amount" => @client.get("/accounts/#{account_id}/balance")["availableBalance"], "currency" => "USD" })
 
@@ -98,7 +133,8 @@ module Shopper
 
       def apply_policies!(card_id, budget, max_orders, key)
         policies_for(card_id, budget, max_orders).each do |policy|
-          @client.post("/policies", policy, idempotency_key: key.("policy-#{policy[:type]}"))
+          r = @client.post("/policies", policy, idempotency_key: key.("policy-#{policy[:type]}"))
+          Log.debug("card.policy", card_id:, type: policy[:type], policy_id: r.is_a?(Hash) ? r["id"] : nil, config: policy[:config])
         end
       end
 
@@ -111,10 +147,12 @@ module Shopper
               @client.post("/simulation/users/#{user_id}/application", { status: "APPROVED" })
             rescue Error => e
               raise unless %w[SIMULATION_INVALID_STATE USER_APPLICATION_FINALIZING].include?(e.code)
+              Log.debug("card.kyc_nudge_ignored", user_id:, code: e.code)
             end
             next_nudge = Time.now + 10
           end
           status = @client.get("/users/#{user_id}").dig("application", "status")
+          Log.debug("card.kyc_poll", user_id:, status:)
           if status == "APPROVED"
             log.("KYC approved (sandbox simulation)")
             return

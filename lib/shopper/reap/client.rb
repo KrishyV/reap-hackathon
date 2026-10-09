@@ -2,6 +2,7 @@ require "net/http"
 require "json"
 require "securerandom"
 require "digest"
+require_relative "../log"
 
 module Shopper
   module Reap
@@ -55,32 +56,48 @@ module Shopper
 
       def request(method, path, body = nil, idempotency_key: nil, headers: {})
         attempt = 0
+        call_id = SecureRandom.hex(4)
+        verb = method.to_s.upcase
+        idem = idempotency_key && idempotency_key[0, 12]
+        Log.debug("reap.request", call_id:, method: verb, path:, idempotency_key: idem, extra_headers: headers.keys, body:)
         loop do
           attempt += 1
           can_retry = attempt <= @max_retries && (method == :get || idempotency_key)
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           begin
             res = perform(method, path, body, idempotency_key, headers)
           rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNRESET, EOFError, SocketError => e
+            Log.warn("reap.network_error", call_id:, method: verb, path:, attempt:, will_retry: !!can_retry,
+                                           error: e.class.name, error_message: e.message, duration_ms: ms_since(started))
             raise Error.new(status: 0, code: "NETWORK", message: e.message) unless can_retry
-            log("#{method.upcase} #{path} -> network error, retrying")
+            log("#{verb} #{path} -> network error, retrying")
             @sleeper.call(0.5 * attempt)
             next
           end
           parsed = parse(res.body)
           status = res.code.to_i
+          meta = { call_id:, method: verb, path:, status:, attempt:, idempotency_key: idem, duration_ms: ms_since(started),
+                   reap_request_id: res["x-request-id"] || res["reap-request-id"], idempotent_replay: res["idempotent-replayed"] }.compact
           if status.between?(200, 299)
-            log("#{method.upcase} #{path} -> #{status}")
+            Log.info("reap.response", **meta)
+            Log.debug("reap.response_body", call_id:, path:, body: parsed)
+            log("#{verb} #{path} -> #{status}")
             return parsed
           end
           err = parsed.is_a?(Hash) ? (parsed["error"] || {}) : {}
           err = {} unless err.is_a?(Hash)
           error = Error.new(status:, code: err["code"] || parsed.is_a?(Hash) && parsed["code"] || "HTTP_#{status}",
                             message: err["message"] || (parsed.is_a?(Hash) && parsed["message"]) || res.body.to_s[0, 200], detail: err["detail"])
-          raise error unless RETRYABLE.include?(status) && can_retry
-          log("#{method.upcase} #{path} -> #{status}, retrying")
+          retrying = RETRYABLE.include?(status) && can_retry
+          Log.public_send(retrying ? :warn : (status >= 500 ? :error : :warn), "reap.error",
+                          **meta, code: error.code, error_message: error.message, detail: error.detail, will_retry: !!retrying, body: parsed)
+          raise error unless retrying
+          log("#{verb} #{path} -> #{status}, retrying")
           @sleeper.call(0.5 * attempt)
         end
       end
+
+      def ms_since(started) = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(1)
 
       def perform(method, path, body, idempotency_key, headers)
         uri = URI.join(@base.to_s, path)

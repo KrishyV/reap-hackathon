@@ -1,5 +1,6 @@
 require_relative "client"
 require_relative "../money"
+require_relative "../log"
 
 module Shopper
   module Reap
@@ -16,10 +17,15 @@ module Shopper
         @simulate_checkout = simulate_checkout
       end
 
-      def search(query, max_price: nil, limit: 6)
-        body = { query:, context: { country: "US", currency: "USD" }, filters: { availability: "AVAILABLE_ONLY" }, pagination: { limit: } }
+      # country/currency describe the shopper (delivery country, budget currency). Merchants
+      # abroad may still return prices in their own currency; callers convert.
+      def search(query, max_price: nil, limit: 6, country: "US", currency: "USD")
+        body = { query:, context: { country:, currency: }, filters: { availability: "AVAILABLE_ONLY" }, pagination: { limit: } }
         body[:filters][:price] = { min: "0", max: max_price.to_decimal_string } if max_price
-        @client.post("/agentic/products/search", body).fetch("products", [])
+        products = @client.post("/agentic/products/search", body).fetch("products", [])
+        Log.debug("agentic.search", query:, country:, currency:, results: products.size,
+                                    merchants: products.map { _1.dig("merchant", "name") }.tally)
+        products
       end
 
       def details(product_ids)
@@ -31,40 +37,64 @@ module Shopper
       end
 
       def create_enrollment(owner_id:, email:, return_url:)
-        @client.post("/agentic/enrollments", {
+        e = @client.post("/agentic/enrollments", {
           source: "EXTERNAL",
           owner: { type: "CLIENT_REFERENCE", id: owner_id, email: },
           presentation: { type: "REDIRECT", returnUrl: return_url }
         })
+        Log.info("agentic.enrollment_created", enrollment_id: e["id"], status: e["status"], owner_id:)
+        e
       end
 
-      def enrollment(id) = @client.get("/agentic/enrollments/#{id}")
+      def enrollment(id)
+        e = @client.get("/agentic/enrollments/#{id}")
+        Log.debug("agentic.enrollment", enrollment_id: id, status: e["status"])
+        e
+      end
 
       def create_quote(items:, email:, address:, idempotency_key:)
-        to_quote(@client.post("/agentic/quotes", {
+        q = to_quote(@client.post("/agentic/quotes", {
           items: items.map { |variant_id, qty| { variantId: variant_id, quantity: qty } },
           email:, shippingAddress: address
         }, idempotency_key:))
+        log_quote("agentic.quote_created", q, items: items.size, ship_country: address[:country])
+        q
       end
 
       # Picks the cheapest shipping option; reprices the quote only if it changes.
       def cheapest_shipping!(quote)
         cheapest = quote.shipping_options.min_by { |o| [Money.from_api(o["price"]).cents, o["id"]] }
+        Log.debug("agentic.shipping_options", quote_id: quote.id,
+                                              options: quote.shipping_options.map { |o| "#{o['id']}:#{o.dig('price', 'amount')}#{o['selected'] ? '*' : ''}" })
         return quote if cheapest.nil? || cheapest["selected"]
-        to_quote(@client.post("/agentic/quotes/#{quote.id}/shipping-option", { shippingOptionId: cheapest["id"] }))
+        q = to_quote(@client.post("/agentic/quotes/#{quote.id}/shipping-option", { shippingOptionId: cheapest["id"] }))
+        log_quote("agentic.quote_reshipped", q, shipping_option: cheapest["id"], previous_total: quote.total)
+        q
       end
 
       def create_checkout(quote_id:, enrollment_id:, return_url:, idempotency_key:)
         headers = @simulate_checkout ? { "X-Simulate-Checkout" => "COMPLETED" } : {}
-        to_checkout(@client.post("/agentic/checkouts", {
+        c = to_checkout(@client.post("/agentic/checkouts", {
           quoteId: quote_id, enrollmentId: enrollment_id,
           presentation: { type: "REDIRECT", returnUrl: return_url }
         }, idempotency_key:, headers:))
+        Log.info("agentic.checkout_created", checkout_id: c.id, quote_id:, status: c.status, simulated: @simulate_checkout,
+                                             needs_approval: !c.approval_url.nil?)
+        c
       end
 
-      def checkout(id) = to_checkout(@client.get("/agentic/checkouts/#{id}"))
+      def checkout(id)
+        c = to_checkout(@client.get("/agentic/checkouts/#{id}"))
+        Log.debug("agentic.checkout_polled", checkout_id: id, status: c.status, order_id: c.order_id, final_amount: c.final_amount)
+        c
+      end
 
       private
+
+      def log_quote(event, q, **extra)
+        Log.info(event, quote_id: q.id, total: q.total, subtotal: q.subtotal, shipping: q.shipping, tax: q.tax,
+                        currency: q.total.currency, expires_at: q.expires_at, shipping_options: q.shipping_options.size, **extra)
+      end
 
       def to_quote(raw)
         b = raw.fetch("amountBreakdown")
@@ -72,8 +102,8 @@ module Shopper
           id: raw.fetch("id"),
           total: Money.from_api(b.fetch("finalAmount")),
           subtotal: Money.from_api(b.fetch("itemsSubtotal")),
-          shipping: b["shipping"] ? Money.from_api(b["shipping"]) : Money.zero,
-          tax: b.dig("tax", "amount") ? Money.from_api(b.dig("tax", "amount")) : Money.zero,
+          shipping: b["shipping"] ? Money.from_api(b["shipping"]) : Money.zero(b.dig("finalAmount", "currency") || "USD"),
+          tax: b.dig("tax", "amount") ? Money.from_api(b.dig("tax", "amount")) : Money.zero(b.dig("finalAmount", "currency") || "USD"),
           expires_at: raw["expiresAt"],
           shipping_options: raw.fetch("shippingOptions", [])
         )
