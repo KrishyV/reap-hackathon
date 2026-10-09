@@ -31,6 +31,36 @@ One-time payment setup: open **/setup**, start an enrollment, and enter a test c
 
 Optional env: `OPENAI_MODEL` (default `gpt-4o-mini`), `RETURN_URL`, `SIMULATE_CHECKOUT` (default `true` in sandbox; skips the hosted approval step), `REAP_WEBHOOK_SECRET` (enables signature verification on `POST /webhooks/reap`).
 
+**Fastest path (demo):** the first purchase saves your shipping details. After that, keep **Autopilot** on: type a goal, tap a budget chip, press Go, and the agent plans, checks the basket against the budget and buys without a review step.
+
+## International shopping
+
+Can Reap pay foreign merchants? **Yes, but it doesn't publish exchange rates.** The card bills in USD. When a merchant charges in GBP or EUR, Reap converts at authorization (`originalCurrency` → `currency` at `conversionRate`) and adds an `FX_MARKUP` fee (basis points, from `GET /fees/effective`; **51 bps** on our sandbox account). To keep "never over budget" *before* paying, the agent estimates:
+
+- **Rates:** [Frankfurter](https://github.com/lineofflight/frankfurter) (ECB reference rates; MIT-licensed, keyless, self-hostable via `FX_URL`). If it's unreachable, a bundled ECB snapshot (`lib/shopper/fx_snapshot.json`) is used with an extra drift buffer.
+- **Hold** = native quote × rate × (1 + FX markup + buffer), rounded **up**. **Capture** = native final × rate × (1 + markup), capped at the hold. Cards, holds and the budget guard stay in USD.
+- The basket uses the same conservative USD estimates and shows `£30.00 ≈ $41.00`. A merchant whose currency can't be priced is never held or checked out.
+- Reap's search `context.currency` acts as a **filter**, not a conversion: merchants that don't sell in that currency simply don't appear. Choose a **Ship to** country to shop that market.
+
+Env: `FX_MARKUP_BPS` (default 150, overridden live by the account's real fee), `FX_BUFFER_BPS` (100), `FX_TTL_SECONDS` (3600), `FX_URL`.
+
+## Merchants
+
+Reap has no merchant-listing endpoint, so we surveyed the sandbox catalog (86 merchants across 66 queries). The home page shows a curated strip (`lib/shopper/merchants.json`): Kith, Alo Yoga, True Classic, Thursday Boots, Bluemercury, Death Wish Coffee, Harney & Sons, Misen, Baronfig, Headphones.com and more.
+
+## Logging & introspection (for agentic debugging)
+
+Every layer emits structured events (`run.*`, `research.*`, `llm.*`, `reap.request/response`, `agentic.*`, `card.*`, `guard.*`, `order.*`, `fx.*`, `basket.*`, `http.request`, `webhook.*`). Each event carries `run_id`, `request_id`, `merchant` and `phase` context, which follows work into background threads. **Logs are unredacted by design: this is a sandbox-only app.**
+
+- stderr: human-readable at `LOG_LEVEL` (info), or `LOG_FORMAT=json`
+- `log/shopper.jsonl`: every event at `LOG_FILE_LEVEL` (debug), including full Reap/OpenAI request and response bodies
+- localhost-only endpoints (disable with `DEBUG_ENDPOINTS=false`): `/debug/logs?run_id=&request_id=&level=&event=&since=&limit=`, `/debug/runs`, `/debug/runs/:id` (state + full trace), `/debug/config`, `/debug/fx?currencies=GBP,EUR&amount=100`
+
+```bash
+curl -s '127.0.0.1:4567/debug/runs/<id>' | jq '.summary'
+jq -c 'select(.run_id=="<id>") | [.seq,.event,.msg]' log/shopper.jsonl
+```
+
 ## Demo script (3 min)
 
 1. **Problem (20s):** Agents can shop, but nobody hands an agent their real card. We give the agent a disposable card that physically can't overspend.
@@ -55,6 +85,10 @@ app.rb (Sinatra)  ── Run state machine: planning → awaiting_review → pur
 
 Agentic Payments currently only accepts `EXTERNAL` enrollments (`REAP_CARD` is "coming soon"), so the merchant charge goes to the enrolled card. The Reap prepaid card acts as the **budget authority**: each order is authorized on it (simulated card network) *before* checkout, and settled or reversed afterwards. Once Reap-card enrollment ships, the prepaid card becomes the payment method directly and the same guards still apply.
 
+## Dependencies
+
+Only Reap and OpenAI are integrated. Everything else is free and open source: Ruby gems (Sinatra, Rack, Puma, dotenv, prop_check, rspec, webmock: MIT or BSD-3-Clause), Frankfurter (MIT) for rates, and hand-written CSS/JS with no CDNs or fonts.
+
 ## Never committed
 
-`.env`, `instructions.md`, `data/*.json`, `vendor/`.
+`.env`, `instructions.md`, `data/*.json`, `log/`, `vendor/`.
