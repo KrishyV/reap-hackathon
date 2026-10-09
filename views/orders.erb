@@ -1,0 +1,6 @@
+<h1>Order history</h1>
+<% if @history.empty? %>
+  <p>No orders yet. <a href="/">Start a request</a>.</p>
+<% else %>
+  <%= erb :_history, locals: { history: @history } %>
+<% end %>

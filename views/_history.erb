@@ -1,0 +1,18 @@
+<table class="history">
+  <thead><tr><th>When</th><th>Goal</th><th>Card</th><th>Spent / budget</th><th>Orders</th></tr></thead>
+  <tbody>
+  <% history.each do |r| %>
+    <tr>
+      <td><%= h r["created_at"].to_s[0, 16].tr("T", " ") %></td>
+      <td><%= h r["goal"] %></td>
+      <td><%= r["card"] ? "•••• #{h r['card']['last4']}" : "—" %> <%= r.dig("receipt", "frozen") ? "🧊" : "" %></td>
+      <td><%= h r.dig("receipt", "spent") %> / <%= h r["budget"] %></td>
+      <td>
+        <% (r["orders"] || []).each do |o| %>
+          <div><b><%= h o["merchant"] %></b>: <%= h o["status"] %> <%= o["order_id"] ? "(#{h o['order_id']})" : "" %></div>
+        <% end %>
+      </td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>

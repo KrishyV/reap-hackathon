@@ -1,0 +1,20 @@
+<section class="hero">
+  <h1>Tell the agent what you need. Set a budget. Done.</h1>
+  <p>The agent plans what to buy, compares real products, then issues a <b>single-use prepaid card loaded with exactly your budget</b> and checks out for you.</p>
+  <form method="post" action="/runs" class="card">
+    <label>What do you want to buy?
+      <textarea name="goal" rows="3" required maxlength="500" placeholder="I want to start Muay Thai. Suggest all the gear a beginner needs."></textarea>
+    </label>
+    <label>Total budget (USD, incl. shipping &amp; tax)
+      <input name="budget" required inputmode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="250">
+    </label>
+    <button type="submit">Plan my basket →</button>
+  </form>
+</section>
+
+<% unless @history.empty? %>
+<section>
+  <h2>Recent orders</h2>
+  <%= erb :_history, locals: { history: @history } %>
+</section>
+<% end %>

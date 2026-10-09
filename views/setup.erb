@@ -1,0 +1,24 @@
+<h1>Payment setup</h1>
+<p>Reap Agentic Payments charges a card stored once through Reap's hosted card-entry page. Do this once; every shopping request reuses it.</p>
+
+<% status = @enrollment && @enrollment["status"] %>
+<div class="card">
+  <% if @enrollment_id %>
+    <p>Enrollment <code><%= h @enrollment_id[0, 8] %>…</code> status:
+      <b class="status <%= h status.to_s.downcase %>"><%= h status || "unknown" %></b>
+      <% if @enrollment&.dig("paymentMethod", "last4") %> · card •••• <%= h @enrollment.dig("paymentMethod", "last4") %><% end %>
+    </p>
+    <% if status == "REQUIRES_ACTION" && @enrollment.dig("nextAction", "url") %>
+      <p><a class="button" target="_blank" rel="noopener" href="<%= h @enrollment.dig('nextAction', 'url') %>">Open Reap card entry →</a></p>
+      <p class="muted">Enter the team test card there (OTP <code>456789</code> if asked), then reload this page.</p>
+    <% end %>
+  <% end %>
+  <% unless status == "ACTIVE" %>
+    <form method="post" action="/setup/enroll">
+      <label>Email for the card owner <input name="email" type="email" required placeholder="you@gmail.com"></label>
+      <button type="submit"><%= @enrollment_id ? "Start a new enrollment" : "Start enrollment" %></button>
+    </form>
+  <% else %>
+    <p>✅ Ready. The agent can check out.</p>
+  <% end %>
+</div>

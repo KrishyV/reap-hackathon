@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dumpling Bros · Agent Shopper</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">🥟 Dumpling Bros <span>Agent Shopper</span></a>
+    <nav><a href="/">New request</a><a href="/orders">Orders</a><a href="/setup">Payment setup</a></nav>
+  </header>
+  <main><%= yield %></main>
+  <footer>Powered by Reap Cards + Agentic Payments (sandbox). One prepaid card per request, frozen after use.</footer>
+</body>
+</html>
