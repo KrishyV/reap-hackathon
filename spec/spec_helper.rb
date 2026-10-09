@@ -7,6 +7,10 @@ require_relative "../lib/shopper"
 
 WebMock.disable_net_connect!
 
+# Quiet: no stderr or file output, but keep everything in the in-memory ring buffer
+# so specs can assert on emitted events.
+Shopper::Log.configure(level: "error", file_level: "debug", file: nil, io: nil)
+
 G = PropCheck::Generators
 SPEC_TMP_ROOT = File.expand_path("../tmp/spec", __dir__)
 
@@ -30,5 +34,6 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
+  config.before { Shopper::Log.clear! }
   config.after(:suite) { FileUtils.rm_rf(File.expand_path("../tmp", __dir__)) if Dir.exist?(SPEC_TMP_ROOT) }
 end

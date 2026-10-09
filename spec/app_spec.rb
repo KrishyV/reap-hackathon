@@ -87,7 +87,7 @@ RSpec.describe ShopperApp do
     expect(data["basket"]["picks"].map { _1["key"] }).to eq(%w[n1 n2])
     expect(data["basket"]["total"]).to eq("$70.00")
     expect(data["basket"]["picks"].first["alternatives"].map { _1["product_id"] }).to eq(["tent-b"])
-    expect(researcher.calls).to eq([{ goal: "camping for two", budget: usd(10_000) }])
+    expect(researcher.calls).to eq([{ goal: "camping for two", budget: usd(10_000), ship_country: "US" }])
 
     get "/runs/#{id}"
     expect(last_response.status).to eq(200)

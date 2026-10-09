@@ -13,7 +13,7 @@ RSpec.describe Shopper::Researcher do
 
       def initialize = (@search_calls = Hash.new(0); @lock = Mutex.new)
 
-      def search(query, max_price:)
+      def search(query, max_price:, **)
         n = @lock.synchronize { @search_calls[query] += 1 }
         raise "503 busy" if query == "tent" && n < 3
         raise "always down" if query == "lamp"

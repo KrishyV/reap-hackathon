@@ -94,13 +94,15 @@ module Fakes
       merchant = items.first.first.split("::").first
       sc = @scenarios[merchant]
       raise InjectedFailure, "quote exploded" if sc.failure == :quote
+      # Quotes are in the merchant's own currency (the price it lists natively).
+      cur = @prices.fetch(items.first.first).currency
       subtotal = items.sum { |variant, qty| @prices.fetch(variant).cents * qty }
       total = subtotal + sc.surcharge_cents
       id = "q#{@seq += 1}"
       @quotes[id] = merchant
-      @ledger << { type: :quote, merchant:, id:, total: Shopper::Money.new(total), items: }
-      Quote.new(id:, total: Shopper::Money.new(total), subtotal: Shopper::Money.new(subtotal),
-                shipping: Shopper::Money.new(sc.surcharge_cents), tax: Shopper::Money.zero, shipping_options: [])
+      @ledger << { type: :quote, merchant:, id:, total: Shopper::Money.new(total, cur), items: }
+      Quote.new(id:, total: Shopper::Money.new(total, cur), subtotal: Shopper::Money.new(subtotal, cur),
+                shipping: Shopper::Money.new(sc.surcharge_cents, cur), tax: Shopper::Money.zero(cur), shipping_options: [])
     end
 
     def cheapest_shipping!(quote)
@@ -136,7 +138,8 @@ module Fakes
 
       final = nil
       if sc.status == "COMPLETED" && sc.final_delta_cents
-        final = Shopper::Money.new([quote_total(state[:quote_id]).cents + sc.final_delta_cents, 0].max)
+        qt = quote_total(state[:quote_id])
+        final = Shopper::Money.new([qt.cents + sc.final_delta_cents, 0].max, qt.currency)
       end
       Checkout.new(id:, status: sc.status, order_id: sc.status == "COMPLETED" ? "ord_#{id}" : nil, final_amount: final)
     end
@@ -147,8 +150,8 @@ module Fakes
 
     def initialize(items) = (@items = items; @calls = [])
 
-    def propose(goal:, budget:, log: ->(_) {})
-      @calls << { goal:, budget: }
+    def propose(goal:, budget:, ship_country: "US", log: ->(_) {})
+      @calls << { goal:, budget:, ship_country: }
       log.("fake research for #{goal}")
       [@items, Shopper::Basket.fit(@items, budget)]
     end
@@ -162,5 +165,15 @@ module Fakes
                         merchant:, unit_price: Shopper::Money.new(cents), reason: "test")
   end
 
-  def prices_for(items) = items.flat_map(&:options).to_h { |o| [o.variant_id, o.unit_price] }
+  # A merchant pricing natively in another currency: unit_price is the budget-currency
+  # estimate (as the Researcher would compute), original_price the native price.
+  def foreign_option(merchant:, native_cents:, currency:, fx:, id: nil)
+    id ||= "#{merchant}-#{native_cents}-#{rand(1_000_000)}"
+    native = Shopper::Money.new(native_cents, currency)
+    Shopper::Option.new(product_id: id, variant_id: "#{merchant}::#{id}", name: "Product #{id}", merchant:,
+                        unit_price: fx.estimate(native, to: "USD"), original_price: native, reason: "test")
+  end
+
+  # The merchant quotes in its native currency.
+  def prices_for(items) = items.flat_map(&:options).to_h { |o| [o.variant_id, o.original_price || o.unit_price] }
 end
