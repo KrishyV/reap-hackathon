@@ -27,7 +27,17 @@ bundle exec rackup -p 4567        # http://127.0.0.1:4567
 bundle exec rspec                 # property-based + unit tests
 ```
 
-One-time payment setup: open **/setup**, start an enrollment, and enter a test card on Reap's hosted page (OTP `456789`). This must be done in a real browser. The enrollment id is saved to `data/state.json` (or set `REAP_ENROLLMENT_ID`).
+One-time card setup at **/setup** (about 30 seconds, done once per install):
+
+1. **Get a secure card link.** It uses your saved email, and every card is filed under one stable owner ID in `data/state.json`.
+2. **Add the card on Reap's page**, either on this computer or by scanning the QR code with your phone. Sandbox test cards are listed on the page with tap-to-copy (e.g. `4622 9431 2313 7797`, CVC `640`, exp `12/27`, OTP `456789`).
+3. **Confirm with a passkey.** Visa requires a one-time Face ID / Touch ID / device-PIN passkey before an agent can use a card. Neither Reap nor this app can skip it.
+4. The page polls Reap and switches to **Ready** by itself, with no reload needed.
+
+Notes:
+- **Mac Safari** blocks Visa's embedded passkey step ("Authentication Failed"). `/setup` detects it and points you to the QR code or another browser.
+- Cards are reused: if an earlier card is still `ACTIVE`, `/setup` switches back to it instead of asking again.
+- **Other machines:** paste an existing enrollment ID under "Already added a card elsewhere?", or pin one with `REAP_ENROLLMENT_ID`. Any card added with the same Reap API key works.
 
 Optional env: `OPENAI_MODEL` (default `gpt-4o-mini`), `RETURN_URL`, `SIMULATE_CHECKOUT` (default `true` in sandbox; skips the hosted approval step), `REAP_WEBHOOK_SECRET` (enables signature verification on `POST /webhooks/reap`).
 
@@ -87,7 +97,7 @@ Agentic Payments currently only accepts `EXTERNAL` enrollments (`REAP_CARD` is "
 
 ## Dependencies
 
-Only Reap and OpenAI are integrated. Everything else is free and open source: Ruby gems (Sinatra, Rack, Puma, dotenv, prop_check, rspec, webmock: MIT or BSD-3-Clause), Frankfurter (MIT) for rates, and hand-written CSS/JS with no CDNs or fonts.
+Only Reap and OpenAI are integrated. Everything else is free and open source: Ruby gems (Sinatra, Rack, Puma, dotenv, rqrcode, prop_check, rspec, webmock: MIT or BSD-3-Clause), Frankfurter (MIT) for rates, and hand-written CSS/JS with no CDNs or fonts.
 
 ## Never committed
 
