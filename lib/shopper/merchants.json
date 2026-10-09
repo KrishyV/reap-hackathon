@@ -1,0 +1,394 @@
+[
+ {
+  "name": "Kith",
+  "domain": "kith.com",
+  "logo_url": null,
+  "categories": [
+   "beauty",
+   "books",
+   "electronics",
+   "gifts"
+  ],
+  "currencies": [
+   "GBP",
+   "SGD",
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Kith for Bose SoundLink Plus Portable Speaker - Nocturnal",
+    "price": 295,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0094/2252/files/BO9021820200-Front.jpg"
+   },
+   {
+    "title": "Assouline The Missoni Family Cookbook",
+    "price": 60,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0094/2252/files/ASS9781614286646-FRONT.jpg"
+   },
+   {
+    "title": "Kith for YETI Rambler\u00ae 26oz. Water Bottle - Black",
+    "price": 65,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0094/2252/files/KHL150609-Front_be15ebdd-f416-4cb1-878e-c5db918e3931.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Alo Yoga",
+  "domain": "aloyoga.com",
+  "logo_url": null,
+  "categories": [
+   "apparel",
+   "beauty",
+   "gifts",
+   "kitchen"
+  ],
+  "currencies": [
+   "SGD",
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "ALO Runner (Unisex) - White/White",
+    "price": 195,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/2185/2813/files/A0590U_00000_b1_s1_a1_3127d11e-0c49-4947-b776-6024980739b4.jpg"
+   },
+   {
+    "title": "ALO Trail (Unisex) - Black",
+    "price": 295,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/2185/2813/files/A0892U_01_b1_s1_a1.jpg"
+   },
+   {
+    "title": "ALO Recovery Mode Sneaker (Unisex) - Natural White/Gum",
+    "price": 195,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/2185/2813/files/A0582U_052730_b1_a1_696644b5-2d7c-4fca-aa63-9520f59ac3a6.jpg"
+   }
+  ]
+ },
+ {
+  "name": "True Classic",
+  "domain": "trueclassictees.com",
+  "logo_url": null,
+  "categories": [
+   "apparel",
+   "outdoor"
+  ],
+  "currencies": [
+   "GBP",
+   "SGD",
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "White Classic Crew Neck",
+    "price": 34.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0220/4008/4552/files/TCT_4000_Short-Sleeve-Classic-Crew_WHITE_Large_Ecomm_2025_JUN_2.jpg"
+   },
+   {
+    "title": "Black Classic Crew Neck",
+    "price": 34.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0220/4008/4552/files/TCT_4000_Short-Sleeve-Classic-Crew_BLACK_Large_Ecomm_2025_JUN_2.jpg"
+   },
+   {
+    "title": "Heather Gray Classic Crew Neck",
+    "price": 34.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0220/4008/4552/files/TCT_4000_Short-Sleeve-Classic-Crew_HEATHER-GRAY_Large_Ecomm_2025_JUN_2.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Thursday Boot Company",
+  "domain": "thursdayboots.com",
+  "logo_url": null,
+  "categories": [
+   "outdoor",
+   "shoes"
+  ],
+  "currencies": [
+   "GBP",
+   "SGD",
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Premier Low Top | Black",
+    "price": 135,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0419/1525/products/1024x1024-Men-Premier-LowTop-Black-111422-3.4.jpg"
+   },
+   {
+    "title": "Premier Low Top | White",
+    "price": 135,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0419/1525/files/1024x1024-Men-Premier-LowTop-White-BlindEyelets-121423-3.4_2_3615bf9d-be8c-4f08-a54e-f6a5b91208ca.jpg"
+   },
+   {
+    "title": "Premier Low Top | Toffee",
+    "price": 135,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0419/1525/products/1024x1024-Men-PremierLowTop-Toffee-3.4.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Bluemercury",
+  "domain": "bluemercury.com",
+  "logo_url": null,
+  "categories": [
+   "beauty",
+   "gifts"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Ernesto Candle",
+    "price": 140,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0283/0185/2747/files/variant_images-size-95ozClassic-3397696410099-1_46fefdec-754e-4c7c-808d-14abc28d3272.jpg"
+   },
+   {
+    "title": "Heavy Armor Facial Moisturizer",
+    "price": 37,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0283/0185/2747/files/global_images-860007498350-1_507825b2-77d6-4dbe-83e0-8b43739a5cbc.jpg"
+   },
+   {
+    "title": "Vitablast C Moisturizer",
+    "price": 82,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0283/0185/2747/files/variant_images-size-DefaultTitle-817237010654-1.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Death Wish Coffee",
+  "domain": "deathwishcoffee.com",
+  "logo_url": null,
+  "categories": [
+   "coffee",
+   "food",
+   "kitchen"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Chocolate Hazelnut Coffee",
+    "price": 19.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0271/7209/files/Chocolate_Hazelnut_14oz_Ground_Angle_DTC_A2_2.jpg"
+   },
+   {
+    "title": "Valhalla Java Odinforce Blend",
+    "price": 15.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0271/7209/files/Valhalla_Java_12oz_Whole_Bean_Front_A1_2.jpg"
+   },
+   {
+    "title": "Espresso Roast Coffee",
+    "price": 19.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0271/7209/files/Espresso_Roast_14oz_Ground_Angle_DTC_A5_2.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Harney & Sons Fine Teas",
+  "domain": "harney.com",
+  "logo_url": null,
+  "categories": [
+   "food"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Hot Cinnamon Spice, Bag of 50 Sachets",
+    "price": 19.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1234/1342/files/2025_50_Count_Sachet_Hot_Cinnamon_Spice_C0010_LTO.jpg"
+   },
+   {
+    "title": "Holiday Tea",
+    "price": 7.5,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1234/1342/files/2026_Ornament_Holiday_Red_45-7002-G54_G0070.jpg"
+   },
+   {
+    "title": "Black Currant Tea",
+    "price": 25,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1234/1342/products/Fresh_Brew_15_qt_Pouch_Black_Currant_Front_0d273b5c-2ae6-48ad-b77f-8759cae9ba25.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Misen",
+  "domain": "misen.com",
+  "logo_url": null,
+  "categories": [
+   "kitchen"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "12\" Pre-Seasoned Carbon Steel Frying Pan",
+    "price": 119,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1186/5476/files/Misen2-Web-PDP-PRODUCTSize-Gallery-1_79d42f20-afd9-473e-99fa-1a26210a00ac.png"
+   },
+   {
+    "title": "6.5\" Chef's Knife - Red",
+    "price": 89,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1186/5476/files/Misen2-Web-PDP-Chef_s_Knife-6.5in-Red-Gallery-1.png"
+   },
+   {
+    "title": "Misen x Chef David Rose 8\u201d Chef\u2019s Knife - Red",
+    "price": 194,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1186/5476/files/Misen2-Web-PDP-CreatorKnives-ChefDavidRose-Chef_s_Knife-8in-Red-Gallery-1.png"
+   }
+  ]
+ },
+ {
+  "name": "Baronfig",
+  "domain": "baronfig.com",
+  "logo_url": null,
+  "categories": [
+   "office"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Squire Hex Pen",
+    "price": 85,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0543/1257/files/squire-hex_variants_03.jpg"
+   },
+   {
+    "title": "Atomic Habits Squire Pens",
+    "price": 75,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0543/1257/products/atomic-habits_squire_buy-square_variants_01.jpg"
+   },
+   {
+    "title": "Squire Classic Precious Metals Pens",
+    "price": 150,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0543/1257/products/stainless-steel_buy-square_01_38993b4f-da5f-460e-a179-bcdfa1ce1967.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Headphones.com",
+  "domain": "headphones.com",
+  "logo_url": null,
+  "categories": [
+   "electronics"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "ELAC NAVA 100 Portable Bluetooth Speaker",
+    "price": 229,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1791/0383/files/1079-1.2623.jpg"
+   },
+   {
+    "title": "Sennheiser HDB 630 Wireless Headphones",
+    "price": 499.95,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1791/0383/files/Sennheiser_HDB_630_1024x1024_9a013b90-9dee-4511-acbd-b49dadc94ce8.jpg"
+   },
+   {
+    "title": "Noble Audio FoKus Artemis Wireless Headphones - Open Box",
+    "price": 799,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1791/0383/files/FoKusArtemis-196.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Bones Coffee Company",
+  "domain": "bonescoffee.com",
+  "logo_url": null,
+  "categories": [
+   "coffee",
+   "food",
+   "kitchen"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Dark Side Chocolate Truffle | 12oz",
+    "price": 19.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1475/5488/files/darksidetruffle12ozfront.jpg"
+   },
+   {
+    "title": "Costa Rica Single-Origin Coffee | 12oz",
+    "price": 19.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1475/5488/files/COSBagFront.jpg"
+   },
+   {
+    "title": "Cinnamon Roll | 12oz",
+    "price": 17.99,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/1475/5488/files/cinnamon_roll_12oz_front_-_GR.jpg"
+   }
+  ]
+ },
+ {
+  "name": "Our Place",
+  "domain": "fromourplace.com",
+  "logo_url": null,
+  "categories": [
+   "kitchen"
+  ],
+  "currencies": [
+   "USD"
+  ],
+  "sample_products": [
+   {
+    "title": "Knife Trio",
+    "price": 119,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0024/4137/9915/files/our-place-knife-trio-paring-chefs-serrated-stainless-steel-steam.jpg"
+   },
+   {
+    "title": "Ceramic Nonstick Always Pan 8.5\u201d",
+    "price": 79,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0024/4137/9915/files/Pink_Mini_Always_Pan.jpg"
+   },
+   {
+    "title": "Ceramic Nonstick Always Pan 10.5\u201d",
+    "price": 95,
+    "currency": "USD",
+    "image_url": "https://cdn.shopify.com/s/files/1/0024/4137/9915/products/AP_Spice_1.jpg"
+   }
+  ]
+ }
+]

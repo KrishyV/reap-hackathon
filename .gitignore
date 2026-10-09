@@ -9,3 +9,4 @@ data/*.json
 data/*.tmp
 .playwright-mcp/
 tmp/
+log/
