@@ -16,7 +16,7 @@ GEM
     nio4r (2.7.5)
     prop_check (1.0.2)
     public_suffix (7.0.5)
-    puma (6.6.1)
+    puma (7.2.1)
       nio4r (~> 2.0)
     rack (3.2.7)
     rack-protection (4.2.1)
@@ -59,11 +59,12 @@ GEM
 
 PLATFORMS
   arm64-darwin-22
+  x86_64-linux
 
 DEPENDENCIES
   dotenv (~> 3.1)
   prop_check (~> 1.0)
-  puma (~> 6.4)
+  puma (~> 7.2)
   rack-test (~> 2.1)
   rackup (~> 2.1)
   rspec (~> 3.13)
