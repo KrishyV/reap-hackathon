@@ -845,3 +845,40 @@ body.has-mbar { padding-bottom: 118px; }
 .groups.ro .why { display: none; }
 .groups.ro .group-head .mono { width: 32px; height: 32px; font-size: 14px; border-radius: 10px; }
 .groups.ro .group-head h3 { font-size: 15px; }
+
+/* ---------- Card setup ---------- */
+.btn-sm { min-height: 40px; padding: 8px 14px; font-size: 14px; border-radius: 12px; }
+.small { font-size: 13px; }
+.mini-title { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.note { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--text-2); padding: 12px 14px; border-radius: 14px; background: var(--surface-sunk); }
+.note svg { width: 20px; height: 20px; flex: none; color: var(--jade); margin-top: 1px; }
+.ready { flex-wrap: wrap; }
+.ready span { flex: 1; min-width: 160px; }
+.ready .btn { margin-left: auto; }
+.vcard.owned {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(120, 220, 255, .45), transparent 50%),
+    radial-gradient(90% 120% at 0% 100%, rgba(40, 200, 150, .45), transparent 55%),
+    linear-gradient(135deg, #062a2a 0%, #0b5a52 45%, #13866f 100%);
+}
+.handoff { display: grid; gap: 18px; align-items: center; }
+@media (min-width: 560px) { .handoff { grid-template-columns: minmax(0, 1fr) auto; } }
+.handoff .btn-lg { width: 100%; justify-content: center; }
+.row-btns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.countdown { font-size: 13px; font-variant-numeric: tabular-nums; }
+.qr { margin: 0; display: grid; justify-items: center; gap: 8px; }
+.qr img { width: 168px; height: 168px; border-radius: 16px; background: #fff; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.qr figcaption { font-size: 12.5px; color: var(--muted); text-align: center; max-width: 168px; }
+@media (max-width: 559px) { .qr { display: none; } }
+.testcards, .useid { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; background: var(--surface-strong); }
+.testcards summary, .useid summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14.5px; }
+.testcards ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.testcards li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.useid form { padding-bottom: 14px; }
+.chip-copy { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--surface-sunk); color: var(--text); border-radius: 9px; padding: 4px 8px; min-height: 32px; transition: background .2s, border-color .2s; }
+.chip-copy:hover { border-color: var(--line-strong); }
+.chip-copy.copied, .btn.copied { background: var(--jade-soft); border-color: transparent; color: var(--jade); }
+.saved-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-strong); font-size: 14.5px; }
+.saved-row > span:nth-child(3) { flex: 1; }
+.saved-net { font-weight: 900; font-style: italic; font-size: 13px; color: var(--ice); min-width: 44px; }
+.pill.live .led { animation: pulse 1.4s var(--ease) infinite; }

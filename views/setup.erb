@@ -1,49 +1,126 @@
 <%
-  status = @enrollment && @enrollment["status"]
-  active = status == "ACTIVE"
-  step = active ? 3 : (@enrollment_id ? 2 : 1)
+  c = @current
+  active = c[:active]
+  pending = c[:status] == "REQUIRES_ACTION"
+  step = active ? 3 : (pending ? 2 : 1)
   pf = @profile || {}
   check = '<svg aria-hidden="true"><use href="#i-check"/></svg>'
+  test_cards = [["4622 9431 2313 7797", "640"], ["4622 9431 2313 7805", "304"], ["4622 9431 2313 7847", "698"]]
 %>
 <header class="page-head">
   <span class="eyebrow"><svg width="14" height="14" aria-hidden="true"><use href="#i-card"/></svg> One-time setup</span>
-  <h1>Connect the payment card</h1>
-  <p>Reap Agentic Payments charges a card you store once on Reap's hosted page. Every shopping request then gets its own single-use prepaid card, loaded with exactly the budget.</p>
+  <h1><%= active ? "Your card is connected" : "Connect the payment card" %></h1>
+  <p>You add a card once on Reap's secure page. After that, every shopping request gets its own single-use prepaid card loaded with exactly your budget, and you never see this page again.</p>
 </header>
 
 <div class="setup-grid">
-  <section class="glass panel stack" aria-labelledby="card-h">
+  <section class="glass panel stack" aria-labelledby="card-h" id="card-setup"
+           data-status="<%= h c[:status] %>" data-expires="<%= h c[:expires_at] %>">
     <h2 class="section-title" id="card-h">Payment card
       <% if active %><span class="pill ok"><span class="led"></span>Active</span>
-      <% elsif status %><span class="pill warn"><span class="led"></span><%= h status.to_s.tr("_", " ").capitalize %></span><% end %>
+      <% elsif pending %><span class="pill warn live" id="live-pill"><span class="led"></span>Waiting for card</span>
+      <% elsif c[:status] == "EXPIRED" %><span class="pill bad"><span class="led"></span>Link expired</span><% end %>
     </h2>
     <ol class="steps3">
-      <li class="<%= step > 1 ? 'done' : 'active' %>"><i><%= step > 1 ? check : "1" %></i> Start an enrollment with your email</li>
-      <li class="<%= step > 2 ? 'done' : (step == 2 ? 'active' : '') %>"><i><%= step > 2 ? check : "2" %></i> Add the card on Reap's secure page</li>
-      <li class="<%= step == 3 ? 'done' : '' %>"><i><%= step == 3 ? check : "3" %></i> The agent can check out</li>
+      <li class="<%= step > 1 ? 'done' : 'active' %>"><i><%= step > 1 ? check : "1" %></i> Get a secure card link</li>
+      <li class="<%= step > 2 ? 'done' : (step == 2 ? 'active' : '') %>"><i><%= step > 2 ? check : "2" %></i> Add the card and confirm with a passkey</li>
+      <li class="<%= step == 3 ? 'done' : '' %>"><i><%= step == 3 ? check : "3" %></i> Done. This page updates by itself.</li>
     </ol>
 
-    <% if @enrollment_id %>
-      <p class="kv">Enrollment <code><%= h @enrollment_id[0, 8] %>…</code>
-        <% if @enrollment&.dig("paymentMethod", "last4") %><span class="pill">card •••• <%= h @enrollment.dig("paymentMethod", "last4") %></span><% end %>
-        <% unless @enrollment %><span class="pill">status unavailable</span><% end %>
-      </p>
-      <% if status == "REQUIRES_ACTION" && @enrollment.dig("nextAction", "url") %>
-        <a class="btn btn-lg" target="_blank" rel="noopener" href="<%= h @enrollment.dig('nextAction', 'url') %>">Open Reap card entry <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        <p class="muted" style="font-size:14px">Enter the team test card there (OTP <code>456789</code> if asked), then reload this page.</p>
-      <% end %>
+    <% if @env_locked %>
+      <p class="note"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>Pinned by <code>REAP_ENROLLMENT_ID</code> in <code>.env</code>.</span></p>
     <% end %>
 
     <% if active %>
-      <div class="ready"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>Ready. The agent can check out.</span></div>
-    <% else %>
+      <div class="vcard owned" aria-label="Connected card ending <%= h c[:last4] %>">
+        <div class="vcard-top">
+          <span class="vcard-brand"><svg aria-hidden="true"><use href="#dumpling"/></svg>Agent wallet</span>
+          <span class="vcard-state"><span class="led"></span>Ready</span>
+        </div>
+        <div class="vcard-mid"><span class="vcard-chip"></span><svg class="vcard-nfc" aria-hidden="true"><use href="#i-nfc"/></svg></div>
+        <div class="vcard-pan">•••• •••• •••• <%= h c[:last4] || "····" %></div>
+        <div class="vcard-bottom">
+          <div><small>Expires</small><b><%= h c[:expiry] || "--/--" %></b></div>
+          <span class="vcard-net"><%= h (c[:network] || "VISA").to_s.upcase %></span>
+        </div>
+      </div>
+      <div class="ready"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>Ready. The agent can check out.</span>
+        <a class="btn btn-sm" href="/">Start shopping <svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+
+      <% if @saved.size > 1 %>
+        <div class="saved stack" style="gap:8px">
+          <h3 class="mini-title">Saved cards</h3>
+          <% @saved.each do |s| %>
+            <form method="post" action="/setup/use" class="saved-row">
+              <input type="hidden" name="enrollment_id" value="<%= h s[:id] %>">
+              <span class="saved-net"><%= h (s[:network] || "card").to_s.upcase %></span>
+              <span>•••• <%= h s[:last4] %> <small class="muted">exp <%= h s[:expiry] %></small></span>
+              <% if s[:id] == c[:id] %><span class="pill ok">In use</span><% else %><button class="btn btn-ghost btn-sm" <%= 'disabled' if @env_locked %>>Use</button><% end %>
+            </form>
+          <% end %>
+        </div>
+      <% end %>
+
+    <% elsif pending %>
+      <div class="handoff">
+        <div class="handoff-main stack" style="gap:12px">
+          <div class="banner safari-only" role="note" hidden>
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <span><b>Mac Safari can't finish Visa's passkey step.</b> Scan the code with your phone, or copy the link into Chrome, Edge or Firefox.</span>
+          </div>
+          <a class="btn btn-lg" id="open-card" target="_blank" rel="noopener" href="<%= h c[:url] %>">Add card on Reap <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <div class="row-btns">
+            <button type="button" class="btn btn-ghost btn-sm" data-copy="<%= h c[:url] %>">Copy link</button>
+            <span class="muted countdown" id="countdown"></span>
+          </div>
+        </div>
+        <figure class="qr">
+          <img src="/setup/qr.svg?<%= h c[:id] %>" width="168" height="168" alt="QR code for the Reap card link">
+          <figcaption>Or scan to finish on your phone</figcaption>
+        </figure>
+      </div>
+
+      <details class="testcards" open>
+        <summary>Sandbox test details <small class="muted">(tap to copy)</small></summary>
+        <ul>
+          <% test_cards.each do |num, cvc| %>
+            <li><button type="button" class="chip-copy" data-copy="<%= num.delete(' ') %>"><code><%= num %></code></button>
+              <span class="muted">CVC</span> <button type="button" class="chip-copy" data-copy="<%= cvc %>"><code><%= cvc %></code></button>
+              <span class="muted">exp</span> <code>12/27</code></li>
+          <% end %>
+          <li><span class="muted">One-time code</span> <button type="button" class="chip-copy" data-copy="456789"><code>456789</code></button> <span class="muted">(email or SMS)</span></li>
+        </ul>
+        <p class="muted small">If one card is declined, start a new link and try the next one.</p>
+      </details>
+
+      <p class="note"><svg aria-hidden="true"><use href="#i-shield"/></svg>
+        <span><b>Why a passkey?</b> Visa needs a one-time Face ID, Touch ID or device PIN before an AI agent can be trusted with a card. Neither Reap nor this app can skip it. You only do it once, and it's saved on your device.</span></p>
+    <% end %>
+
+    <% unless active %>
       <form method="post" action="/setup/enroll" class="stack" style="gap:12px">
-        <label class="field">Email for the card owner
-          <input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" value="<%= h pf['email'] %>">
-        </label>
-        <button type="submit" class="btn <%= @enrollment_id ? 'btn-ghost' : '' %>"><%= @enrollment_id ? "Start a new enrollment" : "Start enrollment" %></button>
+        <% if pending %>
+          <button type="submit" class="btn btn-ghost btn-sm">Get a fresh link</button>
+          <input type="hidden" name="email" value="<%= h c[:email] || pf['email'] %>">
+        <% else %>
+          <label class="field">Email for the card owner
+            <input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" value="<%= h pf['email'] %>">
+          </label>
+          <button type="submit" class="btn btn-lg"><%= c[:status] == "EXPIRED" ? "Get a fresh card link" : "Get a secure card link" %> <svg aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <% end %>
       </form>
     <% end %>
+
+    <details class="useid">
+      <summary><%= active ? "Use a different card" : "Already added a card elsewhere?" %></summary>
+      <form method="post" action="/setup/use" class="stack" style="gap:10px">
+        <label class="field">Enrollment ID
+          <input name="enrollment_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" pattern="[0-9a-fA-F-]{36}" autocomplete="off" spellcheck="false" <%= 'disabled' if @env_locked %>>
+        </label>
+        <button type="submit" class="btn btn-ghost btn-sm" <%= 'disabled' if @env_locked %>>Use this card</button>
+        <p class="muted small">Find it on another machine's <code>/debug/config</code>, or in <code>data/state.json</code>. Any card added with this Reap API key works.<% if active %> Current: <code><%= h c[:id] %></code> <button type="button" class="chip-copy" data-copy="<%= h c[:id] %>">copy</button><% end %></p>
+      </form>
+    </details>
   </section>
 
   <section class="glass panel stack" aria-labelledby="ship-h">
@@ -68,3 +145,5 @@
     </form>
   </section>
 </div>
+
+<script src="/js/setup.js" defer></script>
