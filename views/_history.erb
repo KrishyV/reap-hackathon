@@ -1,18 +1,30 @@
-<table class="history">
-  <thead><tr><th>When</th><th>Goal</th><th>Card</th><th>Spent / budget</th><th>Orders</th></tr></thead>
-  <tbody>
-  <% history.each do |r| %>
-    <tr>
-      <td><%= h r["created_at"].to_s[0, 16].tr("T", " ") %></td>
-      <td><%= h r["goal"] %></td>
-      <td><%= r["card"] ? "•••• #{h r['card']['last4']}" : "—" %> <%= r.dig("receipt", "frozen") ? "🧊" : "" %></td>
-      <td><%= h r.dig("receipt", "spent") %> / <%= h r["budget"] %></td>
-      <td>
+<ul class="history">
+<% history.each do |r| %>
+  <%
+    spent = r.dig("receipt", "spent").to_s
+    budget = r["budget"].to_s
+    num = ->(s) { s.to_s.gsub(/[^\d.]/, "").to_f }
+    pct = num.(budget).positive? ? [(num.(spent) / num.(budget) * 100).round, 100].min : 0
+    frozen = r.dig("receipt", "frozen")
+  %>
+  <li class="hrow">
+    <span class="hrow-icon" aria-hidden="true"><svg><use href="<%= frozen ? '#i-snow' : '#i-bag' %>"/></svg></span>
+    <div class="hrow-main">
+      <span class="hrow-goal" title="<%= h r['goal'] %>"><%= h r["goal"] %></span>
+      <div class="hrow-meta">
+        <time datetime="<%= h r['created_at'] %>"><%= h r["created_at"].to_s[0, 16].tr("T", " ") %></time>
+        <% if r["card"] %><span>•••• <%= h r["card"]["last4"] %><%= frozen ? " · frozen ❄" : "" %></span><% end %>
         <% (r["orders"] || []).each do |o| %>
-          <div><b><%= h o["merchant"] %></b>: <%= h o["status"] %> <%= o["order_id"] ? "(#{h o['order_id']})" : "" %></div>
+          <% st = o["status"].to_s %>
+          <span class="pill <%= st == 'COMPLETED' ? 'ok' : (%w[FAILED DECLINED].include?(st) ? 'bad' : '') %>" title="<%= h o['order_id'] %>"><%= h o["merchant"] %> · <%= h st.tr("_", " ").capitalize %></span>
         <% end %>
-      </td>
-    </tr>
-  <% end %>
-  </tbody>
-</table>
+      </div>
+    </div>
+    <div class="hrow-spend">
+      <b><%= h spent.empty? ? "—" : spent %></b>
+      <span class="minibar" aria-hidden="true"><span style="--p:<%= pct %>%"></span></span>
+      <small>of <%= h budget %></small>
+    </div>
+  </li>
+<% end %>
+</ul>

@@ -1,20 +1,153 @@
-<section class="hero">
-  <h1>Tell the agent what you need. Set a budget. Done.</h1>
-  <p>The agent plans what to buy, compares real products, then issues a <b>single-use prepaid card loaded with exactly your budget</b> and checks out for you.</p>
-  <form method="post" action="/runs" class="card">
-    <label>What do you want to buy?
-      <textarea name="goal" rows="3" required maxlength="500" placeholder="I want to start Muay Thai. Suggest all the gear a beginner needs."></textarea>
-    </label>
-    <label>Total budget (USD, incl. shipping &amp; tax)
-      <input name="budget" required inputmode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="250">
-    </label>
-    <button type="submit">Plan my basket →</button>
+<%
+  hue = ->(s) { s.to_s.each_char.reduce(0) { |a, c| (a * 31 + c.ord) % 360 } }
+  flag = ->(cc) { cc.to_s.upcase.match?(/\A[A-Z]{2}\z/) ? cc.upcase.each_char.map { |c| (c.ord + 127_397).chr(Encoding::UTF_8) }.join : "🌐" }
+  country = (@profile && @profile["country"]).to_s.strip.upcase
+  country = "US" unless country.match?(/\A[A-Z]{2}\z/)
+  examples = [
+    ["🥊", "Muay Thai starter", "I want to start Muay Thai, get me beginner gear"],
+    ["⛺", "Weekend camping", "Weekend camping trip for two: tent, sleeping bags and lights"],
+    ["☕", "Pour-over coffee", "Set me up to make great pour-over coffee at home"],
+    ["🧘", "Home yoga", "I'm starting yoga at home. Get me a mat, blocks and a strap"],
+    ["💻", "Desk upgrade", "Upgrade my work-from-home desk setup for better ergonomics"],
+    ["🎁", "Gift for a cook", "A thoughtful gift for a friend who loves cooking"]
+  ]
+  merchants = Array(@merchants).select { |m| m.is_a?(Hash) && !m["name"].to_s.empty? }
+  samples = merchants.flat_map { |m| Array(m["sample_products"]).select { |p| p.is_a?(Hash) && !p["title"].to_s.empty? }.first(4).map { |p| p.merge("merchant" => m["name"]) } }.first(24)
+  sym = { "USD" => "$", "GBP" => "£", "EUR" => "€", "JPY" => "¥", "SGD" => "S$", "AUD" => "A$", "CAD" => "C$", "HKD" => "HK$" }
+  fmt = ->(price, cur) { cur = cur.to_s.upcase; p = price.to_s.sub(/\A[^\d.]+/, ""); p.empty? ? "" : "#{sym.fetch(cur) { "#{cur} " }}#{p}" }
+%>
+<% if @enrolled == false %>
+  <div class="banner" role="note" style="margin-bottom:20px">
+    <svg aria-hidden="true"><use href="#i-card"/></svg>
+    <span><b>One-time:</b> connect the payment card so the agent can check out.</span>
+    <a href="/setup">Connect card →</a>
+  </div>
+<% end %>
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <span class="eyebrow"><svg width="14" height="14" aria-hidden="true"><use href="#i-spark"/></svg> AI shopping agent</span>
+    <h1 id="hero-title">Say what you need.<br><span class="grad">Set a budget.</span> Done.</h1>
+    <p class="lede">The agent plans the list, searches real merchant catalogs, picks the best options and checks out with a single-use card loaded with exactly your budget.</p>
+    <span class="promise"><svg aria-hidden="true"><use href="#i-shield"/></svg> Never spends a cent over your budget</span>
+    <ol class="how">
+      <li><i><svg aria-hidden="true"><use href="#i-search"/></svg></i><span><b>Plans &amp; searches</b> real catalogs via Reap Agentic Payments</span></li>
+      <li><i><svg aria-hidden="true"><use href="#i-spark"/></svg></i><span><b>Ranks options</b> with AI and fits them to your budget</span></li>
+      <li><i><svg aria-hidden="true"><use href="#i-card"/></svg></i><span><b>Issues one prepaid card</b>, buys, then <b>freezes it</b> ❄</span></li>
+    </ol>
+  </div>
+
+  <form method="post" action="/runs" class="composer glass" id="composer">
+    <div class="goal-wrap">
+      <label class="composer-label" for="goal">What do you want to buy? <span class="count" id="goal-count" aria-hidden="true">0/500</span></label>
+      <textarea class="goal" id="goal" name="goal" rows="3" required maxlength="500" placeholder="I want to start Muay Thai, get me beginner gear"></textarea>
+      <div class="chips" role="group" aria-label="Example requests">
+        <% examples.each do |emo, label, text| %>
+          <button type="button" class="chip" data-goal="<%= h text %>"><span class="emo" aria-hidden="true"><%= emo %></span><%= h label %></button>
+        <% end %>
+      </div>
+    </div>
+
+    <fieldset class="budget-row" style="border:0;margin:0;padding:0;min-width:0">
+      <legend class="composer-label" style="padding:0;margin-bottom:10px;width:100%">All-in budget <span class="count">USD · incl. shipping, tax &amp; FX</span></legend>
+      <div class="budget-opts">
+        <% [100, 250, 500].each do |amt| %>
+          <button type="button" class="chip" data-budget="<%= amt %>" aria-pressed="<%= amt == 250 %>">$<%= amt %></button>
+        <% end %>
+        <label class="money-input" for="budget"><span aria-hidden="true">$</span>
+          <span class="sr-only">Custom budget in US dollars</span>
+          <input id="budget" name="budget" value="250" required inputmode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="Custom" autocomplete="off">
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="settings">
+      <div class="setting">
+        <label class="setting-text" for="autopilot">
+          <b><svg width="16" height="16" aria-hidden="true" style="color:var(--accent)"><use href="#i-bolt"/></svg> Autopilot</b>
+          <span>Buy automatically if it fits the budget — skip review</span>
+        </label>
+        <span class="switch"><input type="checkbox" id="autopilot" name="autopilot" value="1" checked><span class="track" aria-hidden="true"></span></span>
+      </div>
+      <div class="setting">
+        <div class="setting-text">
+          <b>Ship to <span id="ship-view"><span class="flag" aria-hidden="true"><%= flag.(country) %></span> <%= h country %></span></b>
+          <span>International merchants welcome · prices shown with a USD estimate</span>
+        </div>
+        <div class="country-edit" id="ship-edit" hidden>
+          <label class="sr-only" for="ship_country">Ship-to country (2-letter code)</label>
+          <input id="ship_country" name="ship_country" value="<%= h country %>" maxlength="2" pattern="[A-Za-z]{2}" required autocomplete="country">
+        </div>
+        <button type="button" class="linkish" id="ship-change" aria-controls="ship-edit" aria-expanded="false">change</button>
+      </div>
+    </div>
+
+    <div class="submit-row">
+      <button type="submit" class="btn btn-lg btn-block" id="go">
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="go-label">Find it for $250</span>
+        <svg class="btn-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+      </button>
+      <p class="fine"><svg aria-hidden="true"><use href="#i-shield"/></svg> One single-use card · loaded with exactly your budget · frozen after checkout</p>
+    </div>
   </form>
 </section>
 
-<% unless @history.empty? %>
-<section>
-  <h2>Recent orders</h2>
+<% unless merchants.empty? %>
+<section class="merchants" aria-labelledby="shop-from">
+  <div class="section-head">
+    <h2 class="section-title" id="shop-from">Shop from <span class="pill"><%= merchants.size %> merchants</span></h2>
+    <span class="muted" style="font-size:14px">Real catalogs via Reap Agentic Payments</span>
+  </div>
+  <div class="mstrip" role="list">
+    <% merchants.each do |m| %>
+      <div class="merchant" role="listitem">
+        <div class="merchant-head">
+          <% if !m["logo_url"].to_s.empty? %>
+            <img class="merchant-logo" src="<%= h m['logo_url'] %>" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback="<%= h m['name'] %>">
+          <% else %>
+            <span class="merchant-logo mono" style="--h:<%= hue.(m['name']) %>" aria-hidden="true"><%= h m["name"].to_s[0] %></span>
+          <% end %>
+          <div>
+            <div class="merchant-name"><%= h m["name"] %></div>
+            <div class="merchant-domain"><%= h m["domain"] %></div>
+          </div>
+        </div>
+        <div class="merchant-tags">
+          <% Array(m["categories"]).first(2).each do |c| %><span class="pill"><%= h c %></span><% end %>
+          <% Array(m["currencies"]).first(3).each do |c| %><span class="pill ice"><%= h c %></span><% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <% if samples.size >= 4 %>
+    <div class="marquee" aria-label="Sample products from these merchants">
+      <div class="marquee-track">
+        <% (samples + samples).each_with_index do |p, i| %>
+          <div class="product-chip" <%= 'aria-hidden="true"' if i >= samples.size %>>
+            <% if !p["image_url"].to_s.empty? %>
+              <img class="thumb" src="<%= h p['image_url'] %>" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback="<%= h p['title'] %>">
+            <% else %>
+              <span class="thumb mono" style="--h:<%= hue.(p['title']) %>" aria-hidden="true"><%= h p["title"].to_s[0] %></span>
+            <% end %>
+            <p><%= h p["title"] %></p>
+            <b><%= h fmt.(p["price"], p["currency"]) %></b>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</section>
+<% end %>
+
+<% unless @history.nil? || @history.empty? %>
+<section class="history-section" aria-labelledby="recent">
+  <div class="section-head">
+    <h2 class="section-title" id="recent">Recent orders</h2>
+    <a href="/orders">See all →</a>
+  </div>
   <%= erb :_history, locals: { history: @history } %>
 </section>
 <% end %>
+
+<script src="/js/home.js" defer></script>

@@ -1,119 +1,68 @@
-<div class="run" data-run="<%= h @run.id %>" data-enrolled="<%= @enrollment_id ? 'yes' : 'no' %>">
-  <h1><%= h @run.goal %></h1>
-  <p class="muted">Budget <b><%= h @run.budget %></b> · status <b id="status">…</b></p>
-
-  <div class="grid">
-    <div>
-      <div id="review"></div>
-      <div id="card"></div>
-      <div id="orders"></div>
-      <div id="receipt"></div>
+<%
+  flag = ->(cc) { cc.to_s.upcase.match?(/\A[A-Z]{2}\z/) ? cc.upcase.each_char.map { |c| (c.ord + 127_397).chr(Encoding::UTF_8) }.join : "🌐" }
+  pf = @profile.is_a?(Hash) ? @profile : nil
+  country = @run.ship_country.to_s
+  autopilot = @run.respond_to?(:autopilot) && @run.autopilot
+%>
+<div class="run" data-run="<%= h @run.id %>" data-enrolled="<%= @enrollment_id ? 'yes' : 'no' %>" data-country="<%= h country %>" data-budget="<%= h @run.budget %>">
+  <header class="run-head">
+    <span class="eyebrow"><svg width="14" height="14" aria-hidden="true"><use href="#i-spark"/></svg> Shopping run</span>
+    <h1>“<%= h @run.goal %>”</h1>
+    <div class="run-meta">
+      <span class="pill hot live" id="status-pill"><span class="led" aria-hidden="true"></span><span>Status: <b id="status">starting…</b></span></span>
+      <span class="pill">Budget <b><%= h @run.budget %></b></span>
+      <span class="pill"><span aria-hidden="true"><%= flag.(country) %></span> Ship to <%= h country %></span>
+      <span class="pill ok" id="autopilot-pill" <%= 'hidden' unless autopilot %>><svg width="13" height="13" aria-hidden="true"><use href="#i-bolt"/></svg> Autopilot</span>
     </div>
-    <aside>
-      <h3>Agent log</h3>
-      <ol id="log" class="log"></ol>
+    <div class="progress">
+      <ol class="stepper" id="stepper" aria-label="Progress">
+        <% %w[Plan Search Basket Card Checkout Done].each do |s| %>
+          <li><span class="bar" aria-hidden="true"></span><span><%= s %></span></li>
+        <% end %>
+      </ol>
+      <div class="now" id="now" role="status" aria-live="polite"><span class="orb" aria-hidden="true"></span><span class="now-text" id="now-text">Waking up the agent…</span></div>
+    </div>
+  </header>
+
+  <div class="run-grid" id="grid">
+    <div class="run-main" id="stage"></div>
+    <aside class="run-side" id="side" aria-label="Summary and agent timeline">
+      <div id="summary-slot"></div>
+      <details class="glass timeline-card" id="timeline-card" open>
+        <summary class="section-title">Agent timeline <span class="pill" id="log-count">0</span></summary>
+        <ol class="timeline" id="log"></ol>
+      </details>
     </aside>
   </div>
 </div>
 
-<template id="review-tpl">
-  <form method="post" class="card" id="review-form">
-    <h2>Proposed basket</h2>
-    <div id="picks"></div>
-    <div id="drops"></div>
-    <p class="total">Estimated items total: <b id="est"></b> <span class="muted">(shipping &amp; tax added at quote; never exceeds your budget)</span></p>
-    <h3>Ship to</h3>
-    <div class="row">
-      <label>First name <input name="first_name" required></label>
-      <label>Last name <input name="last_name" required></label>
+<template id="ship-tpl">
+  <details class="glass ship" id="ship" <%= 'open' unless pf %>>
+    <summary>
+      <span class="ship-ico" aria-hidden="true"><svg><use href="#i-pin"/></svg></span>
+      <span class="ship-text">
+        <% if pf %>
+          <b>Ship to <%= h [pf["first_name"], pf["last_name"]].compact.join(" ") %></b>
+          <span><%= h [pf["address_line1"], pf["city"]].reject { |v| v.to_s.empty? }.join(", ") %> · <span aria-hidden="true"><%= flag.(country) %></span> <%= h country %></span>
+        <% else %>
+          <b>Where should it ship?</b>
+          <span>Needed once. We'll remember it for next time.</span>
+        <% end %>
+      </span>
+      <% if pf %><span class="ship-edit">edit</span><% end %>
+    </summary>
+    <div class="fields">
+      <label class="field">First name <input name="first_name" required autocomplete="given-name" value="<%= h pf && pf['first_name'] %>"></label>
+      <label class="field">Last name <input name="last_name" required autocomplete="family-name" value="<%= h pf && pf['last_name'] %>"></label>
+      <label class="field">Email <input name="email" type="email" required autocomplete="email" value="<%= h pf && pf['email'] %>"></label>
+      <label class="field">Phone <input name="phone" type="tel" required placeholder="+14155550123" autocomplete="tel" value="<%= h pf && pf['phone'] %>"></label>
+      <label class="field span-2">Address <input name="address_line1" required autocomplete="address-line1" value="<%= h pf && pf['address_line1'] %>"></label>
+      <label class="field">City <input name="city" required autocomplete="address-level2" value="<%= h pf && pf['city'] %>"></label>
+      <label class="field">State / region <input name="region" autocomplete="address-level1" value="<%= h pf && pf['region'] %>"></label>
+      <label class="field">Postal code <input name="postal_code" required autocomplete="postal-code" value="<%= h pf && pf['postal_code'] %>"></label>
+      <label class="field">Country <input name="country" required maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country"></label>
     </div>
-    <div class="row">
-      <label>Email <input name="email" type="email" required></label>
-      <label>Phone <input name="phone" required placeholder="+14155550123"></label>
-    </div>
-    <label>Address <input name="address_line1" required></label>
-    <div class="row">
-      <label>City <input name="city" required></label>
-      <label>State/region <input name="region"></label>
-      <label>Postal code <input name="postal_code" required></label>
-      <label>Country <input name="country" required value="US" maxlength="2"></label>
-    </div>
-    <button type="submit" id="buy">Issue prepaid card &amp; buy →</button>
-    <p class="muted" id="enroll-warning" hidden>⚠️ Set up the payment card first on <a href="/setup">Payment setup</a>.</p>
-  </form>
+  </details>
 </template>
 
-<script>
-const root = document.querySelector(".run");
-const id = root.dataset.run;
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let reviewRendered = false;
-
-function renderReview(run) {
-  if (reviewRendered || run.status !== "awaiting_review" || !run.basket) return;
-  reviewRendered = true;
-  const node = document.getElementById("review-tpl").content.cloneNode(true);
-  const form = node.querySelector("form");
-  form.action = `/runs/${id}/purchase`;
-  const picks = run.basket.picks.map(p => {
-    const opts = [p.option, ...p.alternatives].map((o, i) => `
-      <label class="opt"><input type="radio" name="option_${esc(p.key)}" value="${esc(o.product_id)}" ${i === 0 ? "checked" : ""}>
-        ${o.image_url ? `<img src="${esc(o.image_url)}" alt="">` : ""}
-        <span><b>${esc(o.name)}</b><br><small>${esc(o.merchant)} · ${esc(o.unit_price)}</small><br><small class="muted">${esc(o.reason || "")}</small></span>
-      </label>`).join("");
-    return `<fieldset class="pick"><legend><label><input type="checkbox" name="keep[]" value="${esc(p.key)}" checked>
-      ${esc(p.need)} ×${p.quantity}</label> <span class="prio p${p.priority}">P${p.priority}</span></legend>
-      <p class="muted">${esc(p.why)}</p>${opts}</fieldset>`;
-  }).join("");
-  node.getElementById("picks").innerHTML = picks;
-  node.getElementById("drops").innerHTML = run.basket.drops.length
-    ? `<p class="muted">Left out: ${run.basket.drops.map(d => `${esc(d.need)} (${esc(d.reason).replace(/_/g, " ")})`).join(", ")}</p>` : "";
-  node.getElementById("est").textContent = `${run.basket.total} of ${run.budget}`;
-  if (root.dataset.enrolled !== "yes") { node.getElementById("enroll-warning").hidden = false; }
-  document.getElementById("review").replaceChildren(node);
-}
-
-function render(run) {
-  document.getElementById("status").textContent = run.status.replace("_", " ");
-  document.getElementById("log").innerHTML = run.log.map(l => `<li><time>${esc(l.at)}</time> ${esc(l.msg)}</li>`).join("");
-  renderReview(run);
-  if (run.status !== "awaiting_review") document.getElementById("review").innerHTML = "";
-  if (run.card) {
-    document.getElementById("card").innerHTML = `<div class="card vcard"><div>Prepaid virtual card</div>
-      <div class="pan">•••• •••• •••• ${esc(run.card.last4)}</div><div>Loaded: ${esc(run.card.budget)} · single use${run.receipt?.frozen ? " · 🧊 frozen" : ""}</div>
-      <button type="button" onclick="reveal()">Reveal card details</button><div id="reveal"></div></div>`;
-  }
-  document.getElementById("orders").innerHTML = run.orders.map(o => `<div class="card order ${esc(o.status.toLowerCase())}">
-    <h3>${esc(o.merchant)} — ${esc(o.status.replace("_", " "))}</h3>
-    <ul>${o.items.map(i => `<li>${esc(i.name)} ×${i.quantity} @ ${esc(i.unit_price)}</li>`).join("")}</ul>
-    ${o.dropped.length ? `<p class="muted">Dropped to fit budget: ${o.dropped.map(esc).join(", ")}</p>` : ""}
-    ${o.quoted_total ? `<p>Items ${esc(o.subtotal)} + shipping ${esc(o.shipping)} + tax ${esc(o.tax)} = <b>${esc(o.quoted_total)}</b></p>` : ""}
-    ${o.approval_url && o.status === "AWAITING_APPROVAL" ? `<p><a class="button" target="_blank" rel="noopener" href="${esc(o.approval_url)}">Approve this charge →</a></p>` : ""}
-    ${o.order_id ? `<p>Order <code>${esc(o.order_id)}</code> · charged <b>${esc(o.final_amount)}</b></p>` : ""}
-    ${o.error ? `<p class="error">${esc(o.error)}</p>` : ""}</div>`).join("");
-  if (run.receipt) {
-    const r = run.receipt;
-    document.getElementById("receipt").innerHTML = `<div class="card receipt"><h2>Receipt</h2>
-      <p>${r.completed}/${r.orders} order(s) placed. Spent <b>${esc(r.spent)}</b> of ${esc(r.budget)} · unspent ${esc(r.unspent)} stays on the frozen card.</p>
-      ${r.anomalies.length ? `<p class="error">${r.anomalies.map(esc).join("<br>")}</p>` : ""}</div>`;
-  }
-  if (run.error) document.getElementById("receipt").innerHTML = `<div class="card error">${esc(run.error)}</div>`;
-  return !["done", "failed"].includes(run.status);
-}
-
-async function reveal() {
-  const res = await fetch(`/runs/${id}/reveal`, { method: "POST" });
-  if (!res.ok) return alert(await res.text());
-  const { url } = await res.json();
-  document.getElementById("reveal").innerHTML = `<iframe src="${esc(url)}" title="Card details"></iframe>`;
-}
-
-async function tick() {
-  try {
-    const res = await fetch(`/runs/${id}.json`);
-    if (res.ok && !render(await res.json())) return;
-  } catch (e) {}
-  setTimeout(tick, 1500);
-}
-tick();
-</script>
+<script src="/js/run.js" defer></script>

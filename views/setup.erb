@@ -1,24 +1,70 @@
-<h1>Payment setup</h1>
-<p>Reap Agentic Payments charges a card stored once through Reap's hosted card-entry page. Do this once; every shopping request reuses it.</p>
+<%
+  status = @enrollment && @enrollment["status"]
+  active = status == "ACTIVE"
+  step = active ? 3 : (@enrollment_id ? 2 : 1)
+  pf = @profile || {}
+  check = '<svg aria-hidden="true"><use href="#i-check"/></svg>'
+%>
+<header class="page-head">
+  <span class="eyebrow"><svg width="14" height="14" aria-hidden="true"><use href="#i-card"/></svg> One-time setup</span>
+  <h1>Connect the payment card</h1>
+  <p>Reap Agentic Payments charges a card you store once on Reap's hosted page. Every shopping request then gets its own single-use prepaid card, loaded with exactly the budget.</p>
+</header>
 
-<% status = @enrollment && @enrollment["status"] %>
-<div class="card">
-  <% if @enrollment_id %>
-    <p>Enrollment <code><%= h @enrollment_id[0, 8] %>…</code> status:
-      <b class="status <%= h status.to_s.downcase %>"><%= h status || "unknown" %></b>
-      <% if @enrollment&.dig("paymentMethod", "last4") %> · card •••• <%= h @enrollment.dig("paymentMethod", "last4") %><% end %>
-    </p>
-    <% if status == "REQUIRES_ACTION" && @enrollment.dig("nextAction", "url") %>
-      <p><a class="button" target="_blank" rel="noopener" href="<%= h @enrollment.dig('nextAction', 'url') %>">Open Reap card entry →</a></p>
-      <p class="muted">Enter the team test card there (OTP <code>456789</code> if asked), then reload this page.</p>
+<div class="setup-grid">
+  <section class="glass panel stack" aria-labelledby="card-h">
+    <h2 class="section-title" id="card-h">Payment card
+      <% if active %><span class="pill ok"><span class="led"></span>Active</span>
+      <% elsif status %><span class="pill warn"><span class="led"></span><%= h status.to_s.tr("_", " ").capitalize %></span><% end %>
+    </h2>
+    <ol class="steps3">
+      <li class="<%= step > 1 ? 'done' : 'active' %>"><i><%= step > 1 ? check : "1" %></i> Start an enrollment with your email</li>
+      <li class="<%= step > 2 ? 'done' : (step == 2 ? 'active' : '') %>"><i><%= step > 2 ? check : "2" %></i> Add the card on Reap's secure page</li>
+      <li class="<%= step == 3 ? 'done' : '' %>"><i><%= step == 3 ? check : "3" %></i> The agent can check out</li>
+    </ol>
+
+    <% if @enrollment_id %>
+      <p class="kv">Enrollment <code><%= h @enrollment_id[0, 8] %>…</code>
+        <% if @enrollment&.dig("paymentMethod", "last4") %><span class="pill">card •••• <%= h @enrollment.dig("paymentMethod", "last4") %></span><% end %>
+        <% unless @enrollment %><span class="pill">status unavailable</span><% end %>
+      </p>
+      <% if status == "REQUIRES_ACTION" && @enrollment.dig("nextAction", "url") %>
+        <a class="btn btn-lg" target="_blank" rel="noopener" href="<%= h @enrollment.dig('nextAction', 'url') %>">Open Reap card entry <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <p class="muted" style="font-size:14px">Enter the team test card there (OTP <code>456789</code> if asked), then reload this page.</p>
+      <% end %>
     <% end %>
-  <% end %>
-  <% unless status == "ACTIVE" %>
-    <form method="post" action="/setup/enroll">
-      <label>Email for the card owner <input name="email" type="email" required placeholder="you@gmail.com"></label>
-      <button type="submit"><%= @enrollment_id ? "Start a new enrollment" : "Start enrollment" %></button>
+
+    <% if active %>
+      <div class="ready"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>Ready. The agent can check out.</span></div>
+    <% else %>
+      <form method="post" action="/setup/enroll" class="stack" style="gap:12px">
+        <label class="field">Email for the card owner
+          <input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" value="<%= h pf['email'] %>">
+        </label>
+        <button type="submit" class="btn <%= @enrollment_id ? 'btn-ghost' : '' %>"><%= @enrollment_id ? "Start a new enrollment" : "Start enrollment" %></button>
+      </form>
+    <% end %>
+  </section>
+
+  <section class="glass panel stack" aria-labelledby="ship-h">
+    <h2 class="section-title" id="ship-h">Default shipping
+      <% if @profile %><span class="pill ok"><span class="led"></span>Saved</span><% end %>
+    </h2>
+    <p class="muted" style="font-size:15px">Saved details make checkout one tap and let <b>Autopilot</b> buy without review.</p>
+    <form method="post" action="/profile" class="stack" style="gap:14px">
+      <input type="hidden" name="return_to" value="/setup">
+      <div class="fields">
+        <label class="field">First name <input name="first_name" required autocomplete="given-name" value="<%= h pf['first_name'] %>"></label>
+        <label class="field">Last name <input name="last_name" required autocomplete="family-name" value="<%= h pf['last_name'] %>"></label>
+        <label class="field">Email <input name="email" type="email" required autocomplete="email" value="<%= h pf['email'] %>"></label>
+        <label class="field">Phone <input name="phone" type="tel" required placeholder="+14155550123" autocomplete="tel" value="<%= h pf['phone'] %>"></label>
+        <label class="field span-2">Address <input name="address_line1" required autocomplete="address-line1" value="<%= h pf['address_line1'] %>"></label>
+        <label class="field">City <input name="city" required autocomplete="address-level2" value="<%= h pf['city'] %>"></label>
+        <label class="field">State / region <input name="region" autocomplete="address-level1" value="<%= h pf['region'] %>"></label>
+        <label class="field">Postal code <input name="postal_code" required autocomplete="postal-code" value="<%= h pf['postal_code'] %>"></label>
+        <label class="field">Country <input name="country" required maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" autocomplete="country" value="<%= h pf['country'] %>"></label>
+      </div>
+      <button type="submit" class="btn btn-ghost">Save shipping details</button>
     </form>
-  <% else %>
-    <p>✅ Ready. The agent can check out.</p>
-  <% end %>
+  </section>
 </div>
