@@ -361,6 +361,10 @@
         setTimeout(() => { b.disabled = true; }, 0);
       });
     });
+    form.addEventListener("db:submit-failed", e => {
+      document.querySelectorAll(".approve-btn").forEach(b => b.classList.remove("is-loading"));
+      updateTotals();
+    });
     // Back/forward cache: restore buttons.
     window.addEventListener("pageshow", ev => { if (ev.persisted) location.reload(); });
 

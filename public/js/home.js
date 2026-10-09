@@ -54,6 +54,7 @@
     go.classList.add("is-loading"); go.setAttribute("aria-busy", "true");
     label.textContent = "Sending the agent…";
   });
+  form.addEventListener("db:submit-failed", () => { go.classList.remove("is-loading"); go.removeAttribute("aria-busy"); syncBudget(); });
   window.addEventListener("pageshow", () => { go.classList.remove("is-loading"); go.removeAttribute("aria-busy"); syncBudget(); });
   syncCount(); syncBudget();
 })();

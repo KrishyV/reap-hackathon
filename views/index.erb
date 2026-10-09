@@ -17,7 +17,7 @@
   fmt = ->(price, cur) { cur = cur.to_s.upcase; p = price.to_s.sub(/\A[^\d.]+/, ""); p.empty? ? "" : "#{sym.fetch(cur) { "#{cur} " }}#{p}" }
 %>
 <% if @enrolled == false %>
-  <div class="banner" role="note" style="margin-bottom:20px">
+  <div class="banner page-banner" role="note">
     <svg aria-hidden="true"><use href="#i-card"/></svg>
     <span><b>One-time:</b> connect the payment card so the agent can check out.</span>
     <a href="/setup">Connect card →</a>
@@ -151,3 +151,4 @@
 <% end %>
 
 <script src="/js/home.js" defer></script>
+<script src="/js/address-suggest.js" defer></script>
