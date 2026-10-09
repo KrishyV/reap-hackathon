@@ -105,6 +105,88 @@ RSpec.describe ShopperApp do
     expect(last_response.status).to eq(404)
   end
 
+  describe "card setup" do
+    def state = ShopperApp.settings.store.state
+
+    it "starts an enrollment under one stable owner and shows the link with a QR code" do
+      post "/setup/enroll", email: "ada@example.com"
+      expect(last_response.status).to eq(302)
+      post "/setup/enroll", email: "ada@example.com"
+      owners = ledger.of(:enrollment).map { _1[:owner_id] }
+      expect(owners.uniq.size).to eq(1)
+      expect(owners.first).to eq(state["owner_id"])
+
+      get "/setup"
+      expect(last_response.body).to include("Add card on Reap", "https://collect.example/?session=#{state['enrollment_id']}", "456789")
+      get "/setup/qr.svg"
+      expect(last_response.status).to eq(200)
+      expect(last_response.content_type).to include("image/svg+xml")
+      expect(last_response.body).to include("<svg")
+    end
+
+    it "falls back to the saved profile email" do
+      post "/setup/enroll"
+      expect(last_response.status).to eq(422)
+      ShopperApp.settings.store.save_profile("email" => "ada@example.com")
+      post "/setup/enroll"
+      expect(last_response.status).to eq(302)
+      expect(ledger.of(:enrollment).last[:email]).to eq("ada@example.com")
+    end
+
+    it "flips to ACTIVE on the status poll once the card is added" do
+      post "/setup/enroll", email: "ada@example.com"
+      id = state["enrollment_id"]
+      get "/setup/status.json"
+      expect(JSON.parse(last_response.body)).to include("status" => "REQUIRES_ACTION", "id" => id)
+      agentic.activate!(id, last4: "7797")
+      get "/setup/status.json"
+      expect(JSON.parse(last_response.body)).to include("status" => "ACTIVE", "last4" => "7797", "active" => true)
+      get "/setup/qr.svg"
+      expect(last_response.status).to eq(404)
+    end
+
+    it "reuses an already-active saved card instead of a fresh pending link" do
+      post "/setup/enroll", email: "ada@example.com"
+      old = state["enrollment_id"]
+      agentic.activate!(old, last4: "1111")
+      post "/setup/enroll", email: "ada@example.com"
+      expect(state["enrollment_id"]).not_to eq(old)
+
+      get "/setup"
+      expect(state["enrollment_id"]).to eq(old)
+      expect(last_response.body).to include("Your card is connected", "1111")
+      expect(Shopper::Log.recent.map { _1[:event] }).to include("setup.card_adopted")
+    end
+
+    it "lets you paste an enrollment ID from elsewhere, and validates it" do
+      other = agentic.create_enrollment(owner_id: "someone-else", email: "b@example.com", return_url: "https://x.example")
+      agentic.activate!(other["id"], last4: "4242")
+
+      post "/setup/use", enrollment_id: "not-a-uuid"
+      expect(last_response.status).to eq(422)
+      post "/setup/use", enrollment_id: SecureRandom.uuid
+      expect(last_response.status).to eq(422)
+      expect(last_response.body).to include("NOT_FOUND")
+
+      post "/setup/use", enrollment_id: other["id"].upcase
+      expect(last_response.status).to eq(302)
+      expect(state["enrollment_id"]).to eq(other["id"])
+      get "/setup"
+      expect(last_response.body).to include("4242")
+    end
+
+    it "never overrides an enrollment pinned in the environment" do
+      pinned = agentic.create_enrollment(owner_id: "x", email: "p@example.com", return_url: "https://x.example")
+      ENV["REAP_ENROLLMENT_ID"] = pinned["id"]
+      post "/setup/enroll", email: "ada@example.com"
+      agentic.activate!(state["enrollment_id"])
+      get "/setup"
+      expect(last_response.body).to include("REAP_ENROLLMENT_ID")
+      get "/setup/status.json"
+      expect(JSON.parse(last_response.body)["id"]).to eq(pinned["id"])
+    end
+  end
+
   describe "purchase" do
     it "requires an enrollment" do
       id = create_run

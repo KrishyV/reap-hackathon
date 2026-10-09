@@ -129,6 +129,30 @@ module Fakes
 
     def quote_total(quote_id) = @ledger.of(:quote).find { |e| e[:id] == quote_id }[:total]
 
+    # ---- Enrollments (card setup) ----
+    def enrollment_store = (@enrollments ||= {})
+
+    def create_enrollment(owner_id:, email:, return_url:)
+      id = SecureRandom.uuid
+      @ledger << { type: :enrollment, id:, owner_id:, email:, return_url: }
+      enrollment_store[id] = {
+        "id" => id, "status" => "REQUIRES_ACTION", "owner" => { "type" => "CLIENT_REFERENCE", "id" => owner_id, "email" => email },
+        "paymentMethod" => nil, "updatedAt" => Time.now.utc.iso8601(3),
+        "nextAction" => { "type" => "REDIRECT", "url" => "https://collect.example/?session=#{id}", "expiresAt" => (Time.now + 900).utc.iso8601 }
+      }
+    end
+
+    def activate!(id, last4: "7797", updated_at: Time.now.utc.iso8601(3))
+      enrollment_store.fetch(id).merge!("status" => "ACTIVE", "nextAction" => nil, "updatedAt" => updated_at,
+                                        "paymentMethod" => { "type" => "CARD", "network" => "VISA", "last4" => last4, "expiryMonth" => 12, "expiryYear" => 2027 })
+    end
+
+    def enrollment(id)
+      enrollment_store.fetch(id) { raise Shopper::Reap::Error.new(status: 404, code: "NOT_FOUND", message: "no enrollment") }
+    end
+
+    def enrollments(owner_id:, limit: 50) = enrollment_store.values.select { _1.dig("owner", "id") == owner_id }
+
     private
 
     def build_checkout(id)
