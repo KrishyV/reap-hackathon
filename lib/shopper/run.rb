@@ -1,6 +1,7 @@
 require "securerandom"
 require_relative "money"
 require_relative "basket"
+require_relative "log"
 
 module Shopper
   # One shopping request, from goal to frozen card. Mutated by a worker thread,
@@ -8,13 +9,15 @@ module Shopper
   class Run
     STATUSES = %w[planning awaiting_review purchasing done failed].freeze
 
-    attr_reader :id, :goal, :budget, :created_at
+    attr_reader :id, :goal, :budget, :created_at, :ship_country, :autopilot
     attr_accessor :items, :basket, :card, :receipt
 
-    def initialize(goal:, budget:)
+    def initialize(goal:, budget:, ship_country: "US", autopilot: false)
+      @autopilot = autopilot
       @id = SecureRandom.hex(6)
       @goal = goal
       @budget = budget
+      @ship_country = ship_country
       @status = "planning"
       @log = []
       @orders = {}
@@ -28,15 +31,24 @@ module Shopper
       raise ArgumentError, "unknown status #{to}" unless STATUSES.include?(to)
       @mutex.synchronize do
         raise "run #{id} is #{@status}, expected #{Array(from).join('/')}" if from && !Array(from).include?(@status)
+        Log.info("run.transition", run_id: id, from: @status, to:)
         @status = to
       end
     end
 
-    def log(msg) = @mutex.synchronize { @log << { at: Time.now.strftime("%H:%M:%S"), msg: } }
+    def log(msg)
+      Log.info("run.log", msg.to_s, run_id: id)
+      @mutex.synchronize { @log << { at: Time.now.strftime("%H:%M:%S"), msg: } }
+    end
 
     def fail!(error)
-      log("Error: #{error}")
-      @mutex.synchronize { @status = "failed"; @error = error.to_s }
+      if error.is_a?(Exception)
+        Log.exception("run.failed", error, run_id: id, from: status)
+      else
+        Log.error("run.failed", error.to_s, run_id: id, from: status)
+      end
+      log("Error: #{error.is_a?(Exception) ? error.message : error}")
+      @mutex.synchronize { @status = "failed"; @error = error.is_a?(Exception) ? error.message : error.to_s }
     end
 
     def upsert_order(order) = @mutex.synchronize { @orders[order.merchant] = order.to_h_public }
@@ -44,7 +56,7 @@ module Shopper
     def to_h
       @mutex.synchronize do
         {
-          id:, goal:, budget: budget.to_s, status: @status, error: @error, log: @log.dup,
+          id:, goal:, budget: budget.to_s, ship_country:, autopilot:, status: @status, error: @error, log: @log.dup,
           basket: basket && basket_h,
           card: card && { id: card.id, last4: card.last4, budget: card.budget.to_s },
           orders: @orders.values,
