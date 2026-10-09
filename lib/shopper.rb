@@ -12,6 +12,7 @@ require_relative "shopper/executor"
 require_relative "shopper/webhook_verifier"
 require_relative "shopper/store"
 require_relative "shopper/run"
+require_relative "shopper/run_store"
 require_relative "shopper/card_setup"
 
 module Shopper

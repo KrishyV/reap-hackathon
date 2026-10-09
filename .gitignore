@@ -10,3 +10,5 @@ data/*.tmp
 .playwright-mcp/
 tmp/
 log/
+node_modules/
+data/runs/

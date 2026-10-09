@@ -9,8 +9,14 @@ module Shopper
   class Run
     STATUSES = %w[planning awaiting_review purchasing done failed].freeze
 
-    attr_reader :id, :goal, :budget, :created_at, :ship_country, :autopilot
-    attr_accessor :items, :basket, :card, :receipt
+    attr_reader :id, :goal, :budget, :created_at, :ship_country, :autopilot, :items, :basket, :card, :receipt
+
+    # Persistence hook (see RunStore): called after every state change so a server restart doesn't lose the run.
+    attr_writer :on_change
+
+    %i[items basket card receipt].each do |attr|
+      define_method(:"#{attr}=") { |v| instance_variable_set(:"@#{attr}", v).tap { changed! } }
+    end
 
     def initialize(goal:, budget:, ship_country: "US", autopilot: false)
       @autopilot = autopilot
@@ -34,11 +40,13 @@ module Shopper
         Log.info("run.transition", run_id: id, from: @status, to:)
         @status = to
       end
+      changed!
     end
 
     def log(msg)
       Log.info("run.log", msg.to_s, run_id: id)
       @mutex.synchronize { @log << { at: Time.now.strftime("%H:%M:%S"), msg: } }
+      changed!
     end
 
     def fail!(error)
@@ -49,9 +57,28 @@ module Shopper
       end
       log("Error: #{error.is_a?(Exception) ? error.message : error}")
       @mutex.synchronize { @status = "failed"; @error = error.is_a?(Exception) ? error.message : error.to_s }
+      changed!
     end
 
-    def upsert_order(order) = @mutex.synchronize { @orders[order.merchant] = order.to_h_public }
+    def upsert_order(order)
+      @mutex.synchronize { @orders[order.merchant] = order.to_h_public }
+      changed!
+    end
+
+    # A run restored after a restart lost its worker thread. Review can resume; in-flight work cannot.
+    def recover_after_restart!
+      case status
+      when "planning" then fail!("The server restarted while planning. Please start the request again.")
+      when "purchasing" then fail!("The server restarted during checkout. Check Orders before retrying, a charge may have gone through.")
+      end
+    end
+
+    def marshal_dump = instance_variables.reject { %i[@mutex @on_change].include?(_1) }.to_h { [_1, instance_variable_get(_1)] }
+
+    def marshal_load(ivars)
+      ivars.each { |k, v| instance_variable_set(k, v) }
+      @mutex = Mutex.new
+    end
 
     def to_h
       @mutex.synchronize do
@@ -66,6 +93,12 @@ module Shopper
     end
 
     private
+
+    def changed!
+      @on_change&.call(self)
+    rescue StandardError => e
+      Log.warn("run.persist_failed", run_id: id, error_message: e.message)
+    end
 
     def basket_h
       {
