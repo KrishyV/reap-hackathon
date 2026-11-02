@@ -4,7 +4,7 @@ ruby ">= 3.2"
 
 gem "sinatra", "~> 4.0"
 gem "rackup", "~> 2.1"
-gem "puma", "~> 6.4"
+gem "puma", "~> 7.2"
 gem "dotenv", "~> 3.1"
 
 group :test do
